@@ -1,0 +1,21 @@
+
+# TCP IPv6
+#ipv6: true
+# Service address (IPv4)
+# 服务地址
+#address: "127.0.0.1"
+# Service port (HTTP)
+# 服务端口
+port: 9000
+# Service port (HTTPS)
+https_port: 9443
+https_key: "certs/server.key"
+https_cert: "certs/server.crt"
+
+# OpenAI ChatGPT API
+#openai_api_url: "https://api.openai.com/"
+openai_api_url: "https://open.dacn.me/api/"
+#openai_api_key: "sk-1234567890abcdef1234567890abcdef1234567890abcdef"
+#openai_api_org: "org-1234567890abcdef12345678"
+openai_api_key: "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"
+openai_api_org: "org-92aU5J5z7KhYYRbksMIrgWKA"
