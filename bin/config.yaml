@@ -9,8 +9,8 @@
 port: 9000
 # Service port (HTTPS)
 https_port: 9443
-https_key: "certs/server.key"
-https_cert: "certs/server.crt"
+https_key: "certs/https_rsa_2048.pem.unsecure"
+https_cert: "certs/https.crt"
 
 # OpenAI ChatGPT API
 #openai_api_url: "https://api.openai.com/"
