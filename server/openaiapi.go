@@ -1,11 +1,14 @@
 package server
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"mcmcx.com/gpt-server/utils"
 )
@@ -50,6 +53,7 @@ type ChatGPTResponse struct {
 type API_HTTPData struct {
 	url     string
 	Headers []string
+	Timeout float64
 
 	//
 	Body   any
@@ -66,6 +70,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		data = &API_HTTPData{
 			url:     "",
 			Headers: nil,
+			Timeout: 5.0,
 		}
 	}
 
@@ -76,8 +81,37 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	data.ErrorCode = -1
 	data.ErrorMessage = "<null>"
 
+	timeout := 3.0 * 1000
+	if data.Timeout > 0.0 {
+		timeout = data.Timeout * 1000
+	}
+
 	//
-	var client = &http.Client{}
+	var client = &http.Client{
+		Timeout: time.Millisecond * time.Duration(timeout),
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+					cert, err := x509.ParseCertificate(rawCerts[0])
+					if err != nil {
+						utils.Logger.LogError("(API) TLS Verify Certificate Error: ", err)
+						return err
+					}
+
+					_, err = cert.Verify(x509.VerifyOptions{
+						KeyUsages: nil,
+					})
+					if err != nil {
+						utils.Logger.LogError("(API) TLS Verify Certificate Error: ", err)
+						return err
+					}
+
+					utils.Logger.Log("(API) TLS Verify Certificate : ", cert.NotAfter)
+					return nil
+				},
+			},
+		},
+	}
 	utils.Logger.Log("(API) Request URL: ", data.url)
 
 	//
@@ -158,12 +192,11 @@ func API_GPTModels(config Config) []*ChatGPTModel {
 
 	data := API_HTTPData{
 		Headers: []string{
-			//"Openai-Organization", config.APIOrganization,
-			//"Authorization", fmt.Sprintf("Bearer %s", config.APIKey),
+			"Openai-Organization", config.APIOrganization,
+			"Authorization", fmt.Sprintf("Bearer %s", config.APIKey),
 		},
 	}
-	//API_HTTPRequest(config.APIUrl, "/v1/models", &data)
-	API_HTTPRequest("https://www.baidu.com", "", &data)
+	API_HTTPRequest(config.APIUrl, "/v1/models", &data)
 
 	return models
 }
