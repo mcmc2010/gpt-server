@@ -52,7 +52,7 @@ type ChatGPTResponse struct {
 
 type API_HTTPData struct {
 	url        string
-	Headers    []string
+	Headers    map[string]string
 	Timeout    float64
 	SkipVerify bool
 	//
@@ -115,20 +115,16 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	utils.Logger.Log("(API) Request URL: ", data.url)
 
 	//
-	request, err := http.NewRequest("Get", url, nil)
+	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		utils.Logger.LogError("(API) Create Request Error: ", err)
 		return nil
 	}
 	request.Header.Set("Content-Type", "application/json;charset=utf-8")
-
-	count := len(data.Headers)
-	if count%2 > 0 {
-		utils.Logger.LogError("(API) Create Request Error: Add header error.")
-		return nil
-	}
-	for i := 0; i < count; i += 2 {
-		request.Header.Set(data.Headers[i+0], data.Headers[i+1])
+	if data.Headers != nil {
+		for key, val := range data.Headers {
+			request.Header.Set(key, val)
+		}
 	}
 
 	//
@@ -147,7 +143,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	defer response.Body.Close()
 
 	//
-	if response.StatusCode != 200 {
+	if response.StatusCode != http.StatusOK {
 		body := string(bytes)
 
 		data.Body = body
@@ -192,12 +188,16 @@ func API_GPTModels(config Config) []*ChatGPTModel {
 
 	data := API_HTTPData{
 		SkipVerify: true,
-		Headers: []string{
-			"Openai-Organization", config.APIOrganization,
-			"Authorization", fmt.Sprintf("Bearer %s", config.APIKey),
+		Headers: map[string]string{
+			"Openai-Organization": config.APIOrganization,
+			"Authorization":       fmt.Sprintf("Bearer %s", config.APIKey),
 		},
 	}
-	API_HTTPRequest("https://127.0.0.1:9443", "/v1/models", &data)
+	if API_HTTPRequest(config.APIUrl, "/v1/models", &data) == nil {
+		return nil
+	}
+
+	models = any(data.Body).([]*ChatGPTModel)
 
 	return models
 }
