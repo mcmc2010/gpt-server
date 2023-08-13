@@ -88,34 +88,34 @@ func InitServer(config Config, mode string) *Server {
 	return &server
 }
 
-func (self Server) StartHTTPServer() bool {
+func (I Server) StartHTTPServer() bool {
 	var port = -1
-	if self.port > 0 {
-		port = self.port
+	if I.port > 0 {
+		port = I.port
 	}
 	if port < 0 {
 		utils.Logger.LogWarning(LOG_HTTP_PREFIX, "HTTP Server closed")
 		return false
 	}
 
-	go start_http_server(self.router, fmt.Sprintf("%s:%d", self.address, port))
+	go start_http_server(I.router, fmt.Sprintf("%s:%d", I.address, port))
 
 	//
 	defer utils.Logger.LogWarning(LOG_HTTP_PREFIX, "HTTP Server starting on ", port)
 	return true
 }
 
-func (self Server) StartHTTPSServer() bool {
+func (I Server) StartHTTPSServer() bool {
 	var port = -1
-	if self.https_port > 0 {
-		port = self.https_port
+	if I.https_port > 0 {
+		port = I.https_port
 	}
-	if port < 0 || self.https_privatekey == "" || self.https_certificate == "" {
+	if port < 0 || I.https_privatekey == "" || I.https_certificate == "" {
 		utils.Logger.LogWarning(LOG_HTTP_PREFIX, "HTTPS Server closed")
 		return false
 	}
 
-	go start_https_server(self.router, fmt.Sprintf("%s:%d", self.address, port), self.https_certificate, self.https_privatekey)
+	go start_https_server(I.router, fmt.Sprintf("%s:%d", I.address, port), I.https_certificate, I.https_privatekey)
 
 	//
 	defer utils.Logger.LogWarning(LOG_HTTP_PREFIX, "HTTPS Server starting on ", port)

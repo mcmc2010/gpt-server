@@ -13,11 +13,12 @@ func HandlePing(ctx *gin.Context) {
 		"time_utc": utils.DateFormat(time.Now().UTC(), 9),
 		"time_now": utils.DateFormat(time.Now(), -1),
 	})
-	return
 }
 
 func HandleOpenAIModels(ctx *gin.Context) {
-
+	ctx.JSON(200, gin.H{
+		"message": "hello",
+	})
 }
 
 func HandleOpenAICompletions(ctx *gin.Context) {

@@ -30,10 +30,10 @@ func main() {
 	}
 
 	//ChatGPT
-	var models = server.API_GPTModels(config)
-	if len(models) == 0 {
-
-	}
+	//var models = server.API_GPTModels(config)
+	//if len(models) == 0 {
+	//
+	//}
 
 	//
 	logger.Log("GPT service loading ...")
@@ -46,6 +46,8 @@ func main() {
 	logger.Log("GPT service starting ...")
 	service.StartHTTPServer()
 	service.StartHTTPSServer()
+
+	go server.API_GPTModels(config)
 
 	//select {}
 	sigs := make(chan os.Signal, 1)

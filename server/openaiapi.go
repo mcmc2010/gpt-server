@@ -51,10 +51,10 @@ type ChatGPTResponse struct {
 }
 
 type API_HTTPData struct {
-	url     string
-	Headers []string
-	Timeout float64
-
+	url        string
+	Headers    []string
+	Timeout    float64
+	SkipVerify bool
 	//
 	Body   any
 	Length int
@@ -68,9 +68,10 @@ type API_HTTPData struct {
 func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTPData {
 	if data == nil {
 		data = &API_HTTPData{
-			url:     "",
-			Headers: nil,
-			Timeout: 5.0,
+			url:        "",
+			Headers:    nil,
+			Timeout:    5.0,
+			SkipVerify: false,
 		}
 	}
 
@@ -81,7 +82,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	data.ErrorCode = -1
 	data.ErrorMessage = "<null>"
 
-	timeout := 3.0 * 1000
+	timeout := 5.0 * 1000
 	if data.Timeout > 0.0 {
 		timeout = data.Timeout * 1000
 	}
@@ -91,6 +92,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		Timeout: time.Millisecond * time.Duration(timeout),
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: data.SkipVerify,
 				VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 					cert, err := x509.ParseCertificate(rawCerts[0])
 					if err != nil {
@@ -98,10 +100,8 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 						return err
 					}
 
-					_, err = cert.Verify(x509.VerifyOptions{
-						KeyUsages: nil,
-					})
-					if err != nil {
+					_, err = cert.Verify(x509.VerifyOptions{})
+					if !data.SkipVerify && err != nil {
 						utils.Logger.LogError("(API) TLS Verify Certificate Error: ", err)
 						return err
 					}
@@ -191,12 +191,13 @@ func API_GPTModels(config Config) []*ChatGPTModel {
 	var models []*ChatGPTModel
 
 	data := API_HTTPData{
+		SkipVerify: true,
 		Headers: []string{
 			"Openai-Organization", config.APIOrganization,
 			"Authorization", fmt.Sprintf("Bearer %s", config.APIKey),
 		},
 	}
-	API_HTTPRequest(config.APIUrl, "/v1/models", &data)
+	API_HTTPRequest("https://127.0.0.1:9443", "/v1/models", &data)
 
 	return models
 }
