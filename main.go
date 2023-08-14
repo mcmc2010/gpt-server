@@ -31,7 +31,7 @@ func main() {
 
 	//ChatGPT
 	var models = server.API_GPTModels(config)
-	if models == nil || len(models) == 0 {
+	if len(models) == 0 {
 		logger.LogError("GPT Loading models failure.")
 		return
 	}
