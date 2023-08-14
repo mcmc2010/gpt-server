@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"runtime"
 	"time"
 
@@ -63,6 +64,38 @@ type API_HTTPData struct {
 	//
 	ErrorCode    int
 	ErrorMessage string
+}
+
+func (I API_HTTPData) GetData() any {
+	t := reflect.ValueOf(&I.Body)
+	if t.Kind() == reflect.Array || t.Kind() == reflect.Slice {
+		return any(I.Body).(map[string]any)
+	}
+	return I.Body
+}
+
+func (I API_HTTPData) Get(i any) any {
+
+	v := reflect.ValueOf(&I.Body)
+	iv := reflect.ValueOf(i)
+	if v.Kind() == reflect.Struct {
+		if iv.Kind() != reflect.String {
+			return nil
+		}
+
+		var count int = v.NumField()
+		for n := 0; n < count; n++ {
+			field := v.Field(n)
+			if !field.IsValid() {
+				continue
+			}
+			vfield := iv.FieldByName(field.String())
+			vfield.Set(field.Elem())
+		}
+	} else if v.Kind() == reflect.Array || v.Kind() == reflect.Slice {
+
+	}
+	return nil
 }
 
 // HTTP Request
@@ -202,9 +235,9 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 // curl https://api.openai.com/v1/models \
 // -H "Authorization: Bearer $OPENAI_API_KEY" \
 // -H "OpenAI-Organization: YOUR_ORG_ID"
-func API_GPTModels(config Config) []*ChatGPTModel {
+func API_GPTModels(config Config) []ChatGPTModel {
 
-	var models []*ChatGPTModel
+	var models []ChatGPTModel
 
 	data := API_HTTPData{
 		SkipVerify: true,
@@ -212,14 +245,14 @@ func API_GPTModels(config Config) []*ChatGPTModel {
 			"Openai-Organization": config.APIOrganization,
 			"Authorization":       fmt.Sprintf("Bearer %s", config.APIKey),
 		},
+		Body: ChatGPTModel{},
 	}
+	data.Get(&models)
 
 	if API_HTTPRequest(config.APIUrl, "/v1/models", &data) == nil {
 		return nil
 	}
 
-	var values map[string]any = any(data.Body).(map[string]any)
-	models = any(values["data"]).([]*ChatGPTModel)
 	return models
 }
 
