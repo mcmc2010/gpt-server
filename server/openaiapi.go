@@ -160,7 +160,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	defer response.Body.Close()
 
 	//
-	if response.StatusCode != 200 {
+	if response.StatusCode != http.StatusOK {
 		body := string(bytes)
 
 		data.Body = body

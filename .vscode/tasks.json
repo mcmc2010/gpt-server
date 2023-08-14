@@ -13,6 +13,19 @@
 			],
 			"group": "build",
 			"detail": "go build"
-		}
+		},
+		{
+			"type": "go",
+			"label": "build test",
+			"command": "build",
+			"args": [
+				"-o", "./bin/test.exe", "./test/test.go"
+			],
+			"problemMatcher": [
+				"$go"
+			],
+			"group": "build",
+			"detail": "go build"
+		},
 	]
 }
