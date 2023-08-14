@@ -20,3 +20,4 @@ bin/logs
 
 # Go workspace file
 go.work
+bin/config.yaml
