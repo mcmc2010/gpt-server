@@ -15,6 +15,12 @@ import (
 	"mcmcx.com/gpt-server/utils"
 )
 
+const (
+	API_HTTP_RESULT_ERROR  = -1
+	API_HTTP_RESULT_OK     = 0
+	API_HTTP_RESULT_FAILED = 1
+)
+
 type ChatGPTPermission struct {
 	AllowCreateEngine  bool `json:"allow_create_engine"`
 	AllowFineTuning    bool `json:"allow_fine_tuning"`
@@ -66,12 +72,41 @@ type API_HTTPData struct {
 	ErrorMessage string
 }
 
-func (I API_HTTPData) GetData() any {
-	t := reflect.ValueOf(&I.Body)
-	if t.Kind() == reflect.Array || t.Kind() == reflect.Slice {
-		return any(I.Body).(map[string]any)
+func (I *API_HTTPData) data(value any) any {
+	switch value.(type) {
+	case string:
+		{
+			var v any
+			var text string = value.(string)
+			err := json.Unmarshal([]byte(text), &v)
+			if err != nil {
+				return text
+			}
+			return v
+		}
+	case interface{}:
+		{
+			vv, ok := interface{}(value).([]interface{})
+			if !ok {
+				return value
+			} else {
+				vx := map[string]any{}
+				for i, v := range vv {
+					vx[fmt.Sprintf("%d", i)] = v
+				}
+			}
+		}
+	default:
+		{
+			return nil
+		}
 	}
-	return I.Body
+	return nil
+}
+
+func (I *API_HTTPData) Data() any {
+	//
+	return I.data(I.Body)
 }
 
 func (I API_HTTPData) Get(i any) any {
@@ -231,31 +266,41 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	return data
 }
 
+var http_base_url = ""
+var http_additional_headers map[string]string = map[string]string{}
+
+func API_GPTInit(config Config) {
+	http_base_url = config.APIUrl
+
+	http_additional_headers["Openai-Organization"] = config.APIOrganization
+	http_additional_headers["Authorization"] = fmt.Sprintf("Bearer %s", config.APIKey)
+}
+
 // OpenAI API : Models
 // curl https://api.openai.com/v1/models \
 // -H "Authorization: Bearer $OPENAI_API_KEY" \
 // -H "OpenAI-Organization: YOUR_ORG_ID"
-func API_GPTModels(config Config) []ChatGPTModel {
+func API_GPTModels() *API_HTTPData {
 
-	var models []ChatGPTModel
+	//var models []ChatGPTModel
 
 	data := API_HTTPData{
 		SkipVerify: true,
-		Headers: map[string]string{
-			"Openai-Organization": config.APIOrganization,
-			"Authorization":       fmt.Sprintf("Bearer %s", config.APIKey),
-		},
-		Body: ChatGPTModel{},
+		Headers:    http_additional_headers,
+		//Body: ChatGPTModel{},
 	}
-	data.Get(&models)
+	//data.Get(&models)
 
-	if API_HTTPRequest(config.APIUrl, "/v1/models", &data) == nil {
-		return nil
-	}
-
-	return models
+	API_HTTPRequest(http_base_url, "/v1/models", &data)
+	return &data
 }
 
-func API_GPTCompletions() {
+func API_GPTCompletions() *API_HTTPData {
+	data := API_HTTPData{
+		SkipVerify: true,
+		Headers:    http_additional_headers,
+	}
 
+	API_HTTPRequest(http_base_url, "/v1/chat/completions", &data)
+	return &data
 }

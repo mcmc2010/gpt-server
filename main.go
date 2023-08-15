@@ -30,11 +30,12 @@ func main() {
 	}
 
 	//ChatGPT
-	var models = server.API_GPTModels(config)
-	if len(models) == 0 {
-		logger.LogError("GPT Loading models failure.")
-		return
-	}
+	server.API_GPTInit(config)
+	//var models = server.API_GPTModels(config)
+	//if len(models) == 0 {
+	//	logger.LogError("GPT Loading models failure.")
+	//	return
+	//}
 
 	//
 	logger.Log("GPT service loading ...")
