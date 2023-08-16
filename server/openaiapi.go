@@ -60,10 +60,14 @@ type ChatGPTResponse struct {
 
 type API_HTTPData struct {
 	url        string
+	Method     string
 	Headers    map[string]string
 	Timeout    float64
 	SkipVerify bool
-	//
+	// Request
+	Content       string
+	ContentLength int
+	// Response
 	Body   any
 	Length int
 
@@ -138,6 +142,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	if data == nil {
 		data = &API_HTTPData{
 			url:        "",
+			Method:     "",
 			Headers:    nil,
 			Timeout:    5.0,
 			SkipVerify: false,
@@ -146,6 +151,11 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 
 	url, _ := url.JoinPath(base_url, path)
 	data.url = url
+	if len(data.Method) == 0 {
+		data.Method = "GET"
+	}
+
+	//
 	data.Body = nil
 	data.Length = 0
 	data.ErrorCode = -1
@@ -170,6 +180,13 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 
 	user_agent := fmt.Sprintf(UserAgent, OSName, OSArch)
 
+	// Request Method POST:
+	if data.Method == "POST" {
+		data.ContentLength = len(data.Content)
+		if data.ContentLength == 0 {
+			data.Content = ""
+		}
+	}
 	//
 	var client = &http.Client{
 		Timeout: time.Millisecond * time.Duration(timeout),
@@ -198,7 +215,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	utils.Logger.Log("(API) Request URL: ", data.url)
 
 	//
-	request, err := http.NewRequest("GET", url, nil)
+	request, err := http.NewRequest(data.Method, url, nil)
 	if err != nil {
 		utils.Logger.LogError("(API) Create Request Error: ", err)
 		return nil
@@ -211,6 +228,8 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 			request.Header.Set(key, val)
 		}
 	}
+
+	//
 
 	//
 	response, err := client.Do(request)
@@ -297,6 +316,7 @@ func API_GPTModels() *API_HTTPData {
 
 func API_GPTCompletions() *API_HTTPData {
 	data := API_HTTPData{
+		Method:     "POST",
 		SkipVerify: true,
 		Headers:    http_additional_headers,
 	}
