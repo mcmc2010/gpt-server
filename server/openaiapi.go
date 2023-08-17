@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"reflect"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"mcmcx.com/gpt-server/utils"
@@ -64,16 +66,57 @@ type API_HTTPData struct {
 	Headers    map[string]string
 	Timeout    float64
 	SkipVerify bool
+	Payload    any
 	// Request
 	Content       string
 	ContentLength int
 	// Response
-	Body   any
-	Length int
+	Body     any
+	BodyType string
+	Length   int
+	Chunked  bool
 
 	//
 	ErrorCode    int
 	ErrorMessage string
+}
+
+func (I *API_HTTPData) OSName() string {
+	name := runtime.GOOS
+	if strings.ContainsAny(name, "android") {
+		name = "Android"
+	} else if strings.ContainsAny(name, "darwin") {
+		name = "Macintosh"
+	} else if strings.ContainsAny(name, "freebsd") || strings.ContainsAny(name, "openbsd") {
+		name = "UNIX"
+	} else if strings.ContainsAny(name, "linux") {
+		name = "Linux"
+	} else {
+		name = "Windows"
+	}
+	return name
+}
+
+func (I *API_HTTPData) OSArch() string {
+	var arch string = runtime.GOARCH
+	if arch == "amd64" {
+		arch = "x86_64"
+	} else if arch == "arm64" {
+		arch = "ARM64"
+	} else if arch == "arm" {
+		arch = "ARM"
+	} else {
+		arch = "x86_32"
+	}
+	return arch
+}
+
+func (I *API_HTTPData) UserAgent() string {
+	sys := fmt.Sprintf("(%s, %s)", I.OSName(), I.OSArch())
+
+	user_agent := fmt.Sprintf(`Mozilla/5.0 %s AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36`,
+		sys)
+	return user_agent
 }
 
 func (I *API_HTTPData) data(value any) any {
@@ -158,8 +201,9 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	//
 	data.Body = nil
 	data.Length = 0
+	data.Chunked = false
 	data.ErrorCode = -1
-	data.ErrorMessage = "<null>"
+	data.ErrorMessage = "(null)"
 
 	timeout := 5.0 * 1000
 	if data.Timeout > 0.0 {
@@ -167,26 +211,33 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	}
 
 	//
-	var UserAgent string = `Mozilla/5.0 (%s,%s) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36`
-	var OSName string = runtime.GOOS
-	var OSArch string = runtime.GOARCH
-	if OSArch == "amd64" {
-		OSArch = "x86_64"
-	} else if OSArch == "arm64" {
-		OSArch = "ARM64"
-	} else {
-		OSArch = "x86_32"
-	}
-
-	user_agent := fmt.Sprintf(UserAgent, OSName, OSArch)
+	user_agent := data.UserAgent()
 
 	// Request Method POST:
 	if data.Method == "POST" {
+		switch data.Payload.(type) {
+		case string:
+			data.Content = data.Payload.(string)
+		case int16:
+		case int32:
+		case int8:
+			data.Content = fmt.Sprintf("%d", data.Payload)
+		case nil:
+			data.Content = ""
+		default:
+			bytes, err := json.Marshal(data.Payload)
+			if err != nil {
+				data.Content = fmt.Sprintf("%+v", data.Payload)
+			} else {
+				data.Content = string(bytes)
+			}
+		}
 		data.ContentLength = len(data.Content)
 		if data.ContentLength == 0 {
 			data.Content = ""
 		}
 	}
+
 	//
 	var client = &http.Client{
 		Timeout: time.Millisecond * time.Duration(timeout),
@@ -212,10 +263,16 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 			},
 		},
 	}
-	utils.Logger.Log("(API) Request URL: ", data.url)
+
+	var payload io.Reader = nil
+	if data.Method == "POST" && data.ContentLength > 0 {
+		payload = strings.NewReader(data.Content)
+	}
 
 	//
-	request, err := http.NewRequest(data.Method, url, nil)
+	utils.Logger.Log("(API) Request (", data.Method, ") URL: ", data.url)
+
+	request, err := http.NewRequest(data.Method, url, payload)
 	if err != nil {
 		utils.Logger.LogError("(API) Create Request Error: ", err)
 		return nil
@@ -230,28 +287,43 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	}
 
 	//
-
-	//
 	response, err := client.Do(request)
 	if err != nil {
 		utils.Logger.LogError("(API) Request Error: ", err)
 		return nil
 	}
 
-	bytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		utils.Logger.LogError("(API) Response Body Error: ", err)
-		return nil
+	var value string = ""
+	value = response.Header.Get("Content-Length")
+	if len(value) == 0 {
+		value = "0"
+	}
+	content_length, _ := strconv.ParseInt(value, 10, 64)
+
+	var chunked bool = false
+	value = response.Header.Get("Transfer-Encoding")
+	if len(value) > 0 && value == "chunked" {
+		chunked = true
 	}
 
-	defer response.Body.Close()
+	data.BodyType = "json"
+	data.Length = int(content_length)
+	data.Chunked = chunked
+
+	if data.Chunked {
+		result := API_HTTPReadableStream(response, data)
+		if result < 0 {
+			return nil
+		}
+	} else {
+		result := API_HTTPReadable(response, data)
+		if result < 0 {
+			return nil
+		}
+	}
 
 	//
 	if response.StatusCode != http.StatusOK {
-		body := string(bytes)
-
-		data.Body = body
-		data.Length = len(body)
 
 		utils.Logger.LogError("(API) Response Body Failed: ",
 			fmt.Sprintf("[(%d) Status:%s] ", response.StatusCode, response.Status))
@@ -261,28 +333,57 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		return nil
 	}
 
-	var body any
-	err = json.Unmarshal(bytes, &body)
-	if err != nil {
+	if data.BodyType != "json" {
 		utils.Logger.LogError("(API) Response Body JSON Format Error: ", err)
 
-		// Text
-		body := string(bytes)
-
-		data.Body = body
-		data.Length = len(body)
-
 		data.ErrorCode = -2
-		data.ErrorMessage = err.Error()
+		data.ErrorMessage = "JSON Format error"
 		return nil
 	}
-
-	data.Body = body
-	data.Length = len(bytes)
 
 	data.ErrorCode = 0
 	data.ErrorMessage = ""
 	return data
+}
+
+func API_HTTPReadable(response *http.Response, data *API_HTTPData) int {
+
+	//
+	bytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		data.ErrorCode = -2
+		data.ErrorMessage = err.Error()
+
+		utils.Logger.LogError("(API) Response Body Error: ", err)
+		return -1
+	}
+
+	defer response.Body.Close()
+
+	length := len(bytes)
+
+	data.BodyType = "json"
+	data.Body = nil
+	data.Length = length
+
+	var body any = nil
+	if length > 0 {
+		err = json.Unmarshal(bytes, &body)
+		if err != nil {
+			text := string(bytes)
+
+			data.Body = text
+			data.BodyType = "text"
+			data.Length = len(text)
+		} else {
+			data.Body = body
+		}
+	}
+	return 0
+}
+
+func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
+	return 0
 }
 
 var http_base_url = ""
@@ -314,11 +415,12 @@ func API_GPTModels() *API_HTTPData {
 	return &data
 }
 
-func API_GPTCompletions() *API_HTTPData {
+func API_GPTCompletions(payload any) *API_HTTPData {
 	data := API_HTTPData{
 		Method:     "POST",
 		SkipVerify: true,
 		Headers:    http_additional_headers,
+		Payload:    payload,
 	}
 
 	API_HTTPRequest(http_base_url, "/v1/chat/completions", &data)
