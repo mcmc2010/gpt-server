@@ -293,12 +293,19 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		return nil
 	}
 
+	//
 	var value string = ""
 	value = response.Header.Get("Content-Length")
 	if len(value) == 0 {
 		value = "0"
 	}
 	content_length, _ := strconv.ParseInt(value, 10, 64)
+
+	var stream bool = false
+	value = response.Header.Get("Content-Type")
+	if len(value) > 0 && value == "text/event-stream" {
+		stream = true
+	}
 
 	var chunked bool = false
 	value = response.Header.Get("Transfer-Encoding")
@@ -309,6 +316,9 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	data.BodyType = "json"
 	data.Length = int(content_length)
 	data.Chunked = chunked
+	if stream {
+		data.Chunked = true
+	}
 
 	if data.Chunked {
 		result := API_HTTPReadableStream(response, data)
@@ -383,6 +393,7 @@ func API_HTTPReadable(response *http.Response, data *API_HTTPData) int {
 }
 
 func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
+
 	return 0
 }
 
