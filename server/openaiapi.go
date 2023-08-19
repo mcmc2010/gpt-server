@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	//"net/http/httputil"
 	"net/url"
 	"reflect"
 	"runtime"
@@ -71,10 +73,15 @@ type API_HTTPData struct {
 	Content       string
 	ContentLength int
 	// Response
-	Body     any
-	BodyType string
-	Length   int
-	Chunked  bool
+	Body           any
+	BodyType       string
+	Length         int
+	StreamUsed     bool
+	StreamCallback func(index int, buffer *[]byte)
+
+	//Time
+	tick         int64
+	elapsed_time int //milliseconds
 
 	//
 	ErrorCode    int
@@ -109,6 +116,15 @@ func (I *API_HTTPData) OSArch() string {
 		arch = "x86_32"
 	}
 	return arch
+}
+
+func (I *API_HTTPData) StartTime() {
+	I.tick = time.Now().UnixMilli()
+	I.elapsed_time = 0
+}
+
+func (I *API_HTTPData) EndTime() {
+	I.elapsed_time = int(time.Now().UnixMilli() - I.tick)
 }
 
 func (I *API_HTTPData) UserAgent() string {
@@ -201,9 +217,13 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	//
 	data.Body = nil
 	data.Length = 0
-	data.Chunked = false
+	data.StreamUsed = false
+
 	data.ErrorCode = -1
 	data.ErrorMessage = "(null)"
+
+	data.StartTime()
+	defer data.EndTime()
 
 	timeout := 5.0 * 1000
 	if data.Timeout > 0.0 {
@@ -286,7 +306,6 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		}
 	}
 
-	//
 	response, err := client.Do(request)
 	if err != nil {
 		utils.Logger.LogError("(API) Request Error: ", err)
@@ -315,12 +334,12 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 
 	data.BodyType = "json"
 	data.Length = int(content_length)
-	data.Chunked = chunked
+	data.StreamUsed = chunked
 	if stream {
-		data.Chunked = true
+		data.StreamUsed = true
 	}
 
-	if data.Chunked {
+	if data.StreamUsed {
 		result := API_HTTPReadableStream(response, data)
 		if result < 0 {
 			return nil
@@ -392,7 +411,69 @@ func API_HTTPReadable(response *http.Response, data *API_HTTPData) int {
 	return 0
 }
 
+func API_HTTPReadableStreamChunked(reader *io.Reader, chunks *[][]byte) int {
+	var result int = 1
+	var bytes []byte = make([]byte, 256) //make([]byte, 4096)
+	count, err := (*reader).Read(bytes)
+	if err != nil {
+		if err == io.EOF {
+			result = 0
+		} else {
+			result = -1
+		}
+	}
+
+	if count > 0 {
+		*chunks = append(*chunks, bytes[0:count])
+	}
+
+	// 如果数据还没有全部读取，则继续读取下一块数据
+	if result > 0 {
+		result = API_HTTPReadableStreamChunked(reader, chunks)
+		if result < 0 {
+			return -1
+		}
+	} else if result < 0 {
+		return -1
+	}
+
+	return 0
+}
+
 func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
+
+	var buffer []byte
+	var chunks [][]byte
+	var chunks_count int = 0
+	reader := io.Reader(response.Body) //httputil.NewChunkedReader(response.Body)
+	result := API_HTTPReadableStreamChunked(&reader, &chunks)
+	if result < 0 {
+		data.ErrorCode = -2
+		data.ErrorMessage = "Read stream chunked error."
+
+		utils.Logger.LogError("(API) Response Body Error: ", "Read stream chunked error.")
+		return -1
+	}
+
+	chunks_count = len(chunks)
+	for i := 0; i < chunks_count; i++ {
+		temp := chunks[i]
+		buffer = append(buffer, temp...)
+	}
+
+	length := len(buffer)
+	if(length > 0) {
+		if(data.Body == nil) {
+			data.Length = 0
+			data.Body = []byte {}
+		}
+		data.Body = append(data.Body.([]byte), buffer...)
+		data.Length += length
+	}
+
+	if(data.StreamCallback != nil) {
+		data.StreamCallback(0, &buffer)
+	}
 
 	return 0
 }
@@ -432,6 +513,9 @@ func API_GPTCompletions(payload any) *API_HTTPData {
 		SkipVerify: true,
 		Headers:    http_additional_headers,
 		Payload:    payload,
+		StreamCallback: func(index int, buffer *[]byte) {
+
+		},
 	}
 
 	API_HTTPRequest(http_base_url, "/v1/chat/completions", &data)

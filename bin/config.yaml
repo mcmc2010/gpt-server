@@ -15,5 +15,5 @@ https_cert: "certs/https.crt"
 # OpenAI ChatGPT API
 #openai_api_url: "https://api.openai.com/"
 openai_api_url: "https://open.dacn.me/api/"
-openai_api_key: "sk-1234567890abcdef1234567890abcdef1234567890abcdef"
-openai_api_org: "org-1234567890abcdef12345678"
+openai_api_key: "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"
+openai_api_org: "org-92aU5J5z7KhYYRbksMIrgWKA"
