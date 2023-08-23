@@ -77,7 +77,8 @@ type API_HTTPData struct {
 	BodyType       string
 	Length         int
 	StreamUsed     bool
-	StreamCallback func(index int, buffer *[]byte)
+	ChunkedUsed    bool
+	StreamCallback func(index int, buffer *[]byte, length int)
 
 	//Time
 	tick         int64
@@ -205,6 +206,9 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 			Headers:    nil,
 			Timeout:    5.0,
 			SkipVerify: false,
+			//
+			StreamUsed:     false,
+			StreamCallback: nil,
 		}
 	}
 
@@ -217,7 +221,6 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	//
 	data.Body = nil
 	data.Length = 0
-	data.StreamUsed = false
 
 	data.ErrorCode = -1
 	data.ErrorMessage = "(null)"
@@ -299,6 +302,9 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	}
 	request.Header.Set("Content-Type", "application/json;charset=utf-8")
 	request.Header.Set("User-Agent", user_agent)
+	if data.StreamUsed {
+		request.Header.Set("Accept", "text/event-stream")
+	}
 
 	if data.Headers != nil {
 		for key, val := range data.Headers {
@@ -320,24 +326,18 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	}
 	content_length, _ := strconv.ParseInt(value, 10, 64)
 
-	var stream bool = false
 	value = response.Header.Get("Content-Type")
 	if len(value) > 0 && value == "text/event-stream" {
-		stream = true
+		data.StreamUsed = true
 	}
 
-	var chunked bool = false
 	value = response.Header.Get("Transfer-Encoding")
 	if len(value) > 0 && value == "chunked" {
-		chunked = true
+		data.ChunkedUsed = true
 	}
 
 	data.BodyType = "json"
 	data.Length = int(content_length)
-	data.StreamUsed = chunked
-	if stream {
-		data.StreamUsed = true
-	}
 
 	if data.StreamUsed {
 		result := API_HTTPReadableStream(response, data)
@@ -411,7 +411,7 @@ func API_HTTPReadable(response *http.Response, data *API_HTTPData) int {
 	return 0
 }
 
-func API_HTTPReadableStreamChunked(reader *io.Reader, chunks *[][]byte) int {
+func API_HTTPReadableStreamChunkedData(reader *io.Reader, chunks *[][]byte) int {
 	var result int = 1
 	var bytes []byte = make([]byte, 256) //make([]byte, 4096)
 	count, err := (*reader).Read(bytes)
@@ -429,7 +429,7 @@ func API_HTTPReadableStreamChunked(reader *io.Reader, chunks *[][]byte) int {
 
 	// 如果数据还没有全部读取，则继续读取下一块数据
 	if result > 0 {
-		result = API_HTTPReadableStreamChunked(reader, chunks)
+		result = API_HTTPReadableStreamChunkedData(reader, chunks)
 		if result < 0 {
 			return -1
 		}
@@ -440,13 +440,15 @@ func API_HTTPReadableStreamChunked(reader *io.Reader, chunks *[][]byte) int {
 	return 0
 }
 
-func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
+func API_HTTPReadableStreamChunked(reader *io.Reader, data *API_HTTPData, buffer *[]byte) int {
 
-	var buffer []byte
+	*buffer = make([]byte, 0)
+
+	//
 	var chunks [][]byte
 	var chunks_count int = 0
-	reader := io.Reader(response.Body) //httputil.NewChunkedReader(response.Body)
-	result := API_HTTPReadableStreamChunked(&reader, &chunks)
+
+	result := API_HTTPReadableStreamChunkedData(reader, &chunks)
 	if result < 0 {
 		data.ErrorCode = -2
 		data.ErrorMessage = "Read stream chunked error."
@@ -458,22 +460,42 @@ func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
 	chunks_count = len(chunks)
 	for i := 0; i < chunks_count; i++ {
 		temp := chunks[i]
-		buffer = append(buffer, temp...)
+		*buffer = append(*buffer, temp...)
 	}
 
-	length := len(buffer)
-	if(length > 0) {
-		if(data.Body == nil) {
+	length := len(*buffer)
+	if length > 0 {
+		if data.Body == nil {
 			data.Length = 0
-			data.Body = []byte {}
+			data.Body = []byte{}
 		}
-		data.Body = append(data.Body.([]byte), buffer...)
+		data.Body = append(data.Body.([]byte), *buffer...)
 		data.Length += length
 	}
 
-	if(data.StreamCallback != nil) {
-		data.StreamCallback(0, &buffer)
+	return length
+}
+
+func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
+
+	reader := io.Reader(response.Body) //httputil.NewChunkedReader(response.Body)
+
+	var buffer []byte
+	var index int = 0
+	var length int = 0
+
+	length = API_HTTPReadableStreamChunked(&reader, data, &buffer)
+	if length < 0 {
+		if data.StreamCallback != nil {
+			data.StreamCallback(-1, nil, 0)
+		}
+		return -1
 	}
+	if data.StreamCallback != nil {
+		data.StreamCallback(index, &buffer, length)
+	}
+
+	index++
 
 	return 0
 }
@@ -507,14 +529,18 @@ func API_GPTModels() *API_HTTPData {
 	return &data
 }
 
-func API_GPTCompletions(payload any) *API_HTTPData {
+func API_GPTCompletions(payload any, ondata func(int, *[]byte, int)) *API_HTTPData {
 	data := API_HTTPData{
 		Method:     "POST",
 		SkipVerify: true,
 		Headers:    http_additional_headers,
 		Payload:    payload,
-		StreamCallback: func(index int, buffer *[]byte) {
-
+		//
+		StreamUsed: true,
+		StreamCallback: func(index int, buffer *[]byte, length int) {
+			if ondata != nil {
+				ondata(index, buffer, length)
+			}
 		},
 	}
 
