@@ -10,7 +10,7 @@ import (
 )
 
 func HandlePing(ctx *gin.Context) {
-	ctx.JSON(200, gin.H{
+	ctx.JSON(http.StatusOK, gin.H{
 		"message":  "pong",
 		"time_utc": utils.DateFormat(time.Now().UTC(), 9),
 		"time_now": utils.DateFormat(time.Now(), -1),
@@ -22,7 +22,9 @@ func HandleResultError(ctx *gin.Context, code int, message string) {
 		"error_code":    code,
 		"error_message": message,
 	}
-	ctx.JSON(http.StatusBadRequest, result)
+	if !ctx.IsAborted() {
+		ctx.JSON(http.StatusBadRequest, result)
+	}
 }
 
 func HandleResultFailed(ctx *gin.Context, code int, message string) {
@@ -30,7 +32,9 @@ func HandleResultFailed(ctx *gin.Context, code int, message string) {
 		"error_code":    code,
 		"error_message": message,
 	}
-	ctx.JSON(http.StatusOK, result)
+	if !ctx.IsAborted() {
+		ctx.JSON(http.StatusOK, result)
+	}
 }
 
 func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData) {
@@ -44,13 +48,17 @@ func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData) {
 		result["error_code"] = data.ErrorCode
 		result["error_message"] = data.ErrorMessage
 
-		ctx.JSON(http.StatusOK, result)
+		if !ctx.IsAborted() {
+			ctx.JSON(http.StatusOK, result)
+		}
 	} else {
-		ctx.JSON(http.StatusOK, gin.H{
-			"error_code":    data.ErrorCode,
-			"error_message": data.ErrorMessage,
-			"error":         nil,
-		})
+		if !ctx.Writer.Written() {
+			ctx.JSON(http.StatusOK, gin.H{
+				"error_code":    data.ErrorCode,
+				"error_message": data.ErrorMessage,
+				"error":         nil,
+			})
+		}
 	}
 }
 
@@ -79,6 +87,10 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 		return
 	}
 
+	ctx.Header("Content-Type", "text/event-stream")
+	ctx.Header("Cache-Control", "no-cache")
+	ctx.Header("Connection", "keep-alive")
+
 	var data *API_HTTPData
 	data = API_GPTCompletions(body, func(index int, buffer *[]byte, length int) {
 
@@ -100,9 +112,6 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 		return
 	}
 
-	//ctx.JSON(200, data.Data())
-	ctx.Header("Content-Type", "text/event-stream")
-	ctx.Header("Cache-Control", "no-cache")
-	ctx.Header("Connection", "keep-alive")
-
+	//ctx.String(http.StatusOK, "")
+	<-ctx.Done()
 }

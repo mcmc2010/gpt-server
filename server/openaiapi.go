@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 
 	//"net/http/httputil"
@@ -137,7 +138,16 @@ func (I *API_HTTPData) UserAgent() string {
 }
 
 func (I *API_HTTPData) data(value any) any {
-	switch value.(type) {
+	switch tt := value.(type) {
+	case []byte:
+		{
+			var v any
+			err := json.Unmarshal(value.([]byte), &v)
+			if err != nil {
+				return value
+			}
+			return v
+		}
 	case string:
 		{
 			var v any
@@ -150,6 +160,8 @@ func (I *API_HTTPData) data(value any) any {
 		}
 	case interface{}:
 		{
+			println("%+v", tt)
+
 			vv, ok := interface{}(value).([]interface{})
 			if !ok {
 				return value
@@ -158,11 +170,8 @@ func (I *API_HTTPData) data(value any) any {
 				for i, v := range vv {
 					vx[fmt.Sprintf("%d", i)] = v
 				}
+				return vx
 			}
-		}
-	default:
-		{
-			return nil
 		}
 	}
 	return nil
@@ -215,7 +224,7 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	url, _ := url.JoinPath(base_url, path)
 	data.url = url
 	if len(data.Method) == 0 {
-		data.Method = "GET"
+		data.Method = http.MethodGet
 	}
 
 	//
@@ -236,8 +245,44 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	//
 	user_agent := data.UserAgent()
 
+	//
+	var dialer = &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 60 * time.Second,
+	}
+
+	var client = &http.Client{
+		Timeout: time.Millisecond * time.Duration(timeout),
+		Transport: &http.Transport{
+			ForceAttemptHTTP2: true,
+			DialContext:       dialer.DialContext,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: data.SkipVerify,
+				VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+					cert, err := x509.ParseCertificate(rawCerts[0])
+					if err != nil {
+						utils.Logger.LogError("(API) TLS Verify Certificate Error: ", err)
+						return err
+					}
+
+					_, err = cert.Verify(x509.VerifyOptions{})
+					if !data.SkipVerify && err != nil {
+						utils.Logger.LogError("(API) TLS Verify Certificate Error: ", err)
+						return err
+					}
+
+					utils.Logger.Log("(API) TLS Verify Certificate : ", cert.NotAfter)
+					return nil
+				},
+			},
+		},
+	}
+
 	// Request Method POST:
-	if data.Method == "POST" {
+	if data.Method == http.MethodPost {
+		//
+
+		//
 		switch data.Payload.(type) {
 		case string:
 			data.Content = data.Payload.(string)
@@ -261,34 +306,8 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		}
 	}
 
-	//
-	var client = &http.Client{
-		Timeout: time.Millisecond * time.Duration(timeout),
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: data.SkipVerify,
-				VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-					cert, err := x509.ParseCertificate(rawCerts[0])
-					if err != nil {
-						utils.Logger.LogError("(API) TLS Verify Certificate Error: ", err)
-						return err
-					}
-
-					_, err = cert.Verify(x509.VerifyOptions{})
-					if !data.SkipVerify && err != nil {
-						utils.Logger.LogError("(API) TLS Verify Certificate Error: ", err)
-						return err
-					}
-
-					utils.Logger.Log("(API) TLS Verify Certificate : ", cert.NotAfter)
-					return nil
-				},
-			},
-		},
-	}
-
 	var payload io.Reader = nil
-	if data.Method == "POST" && data.ContentLength > 0 {
+	if data.Method == http.MethodPost && data.ContentLength > 0 {
 		payload = strings.NewReader(data.Content)
 	}
 
@@ -312,6 +331,8 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		}
 	}
 
+	//response, err := client.Post(url, "application/json;charset=utf-8", payload)
+	//response, err := http.DefaultClient.Do(request)
 	response, err := client.Do(request)
 	if err != nil {
 		utils.Logger.LogError("(API) Request Error: ", err)
@@ -476,15 +497,14 @@ func API_HTTPReadableStreamChunked(reader *io.Reader, data *API_HTTPData, buffer
 	return length
 }
 
-func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
+func API_HTTPReadableStreamAsync(reader *io.Reader, data *API_HTTPData) int {
 
-	reader := io.Reader(response.Body) //httputil.NewChunkedReader(response.Body)
-
+	//
 	var buffer []byte
 	var index int = 0
 	var length int = 0
 
-	length = API_HTTPReadableStreamChunked(&reader, data, &buffer)
+	length = API_HTTPReadableStreamChunked(reader, data, &buffer)
 	if length < 0 {
 		if data.StreamCallback != nil {
 			data.StreamCallback(-1, nil, 0)
@@ -496,6 +516,14 @@ func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
 	}
 
 	index++
+	return 0
+}
+
+func API_HTTPReadableStream(response *http.Response, data *API_HTTPData) int {
+
+	reader := io.Reader(response.Body) //httputil.NewChunkedReader(response.Body)
+
+	go API_HTTPReadableStreamAsync(&reader, data)
 
 	return 0
 }
