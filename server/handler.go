@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -91,27 +92,34 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "no-cache")
 	ctx.Header("Connection", "keep-alive")
 
+	//context := ctx.Request.Context()
+	ctx_context, ctx_cancel := context.WithCancel(ctx.Request.Context())
+
 	var data *API_HTTPData
 	data = API_GPTCompletions(body, func(index int, buffer *[]byte, length int) {
-
-		if index >= 0 {
-			_, err := ctx.Writer.Write(*buffer)
-			if err != nil {
-				HandleResultFailed(ctx, -10, "Write stream failed.")
-				return
-			}
-
-			ctx.Writer.Flush()
-		} else {
+		defer ctx_cancel()
+		if index < 0 {
 			HandleResultFailed2(ctx, data)
 			return
 		}
+
+		_, err := ctx.Writer.Write(*buffer)
+		if err != nil {
+			HandleResultFailed(ctx, -10, "Write stream failed.")
+			return
+		}
+
+		ctx.Writer.Flush()
 	})
+
 	if data.ErrorCode != API_HTTP_RESULT_OK {
 		HandleResultFailed2(ctx, data)
 		return
 	}
 
 	//ctx.String(http.StatusOK, "")
-	<-ctx.Done()
+	select {
+	case <-ctx_context.Done():
+		return
+	}
 }

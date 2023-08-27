@@ -8,7 +8,7 @@ curl "https://127.0.0.1:9443/api/v1/chat/completions" --insecure \
         -d '{
         "model":"gpt-3.5-turbo",
         "messages":[
-                {"role":"user","content":"Please type C++ program!"}
+                {"role":"user","content":"Please type go web backend!"}
         ],
         "max_tokens":2048,
         "temperature":1,

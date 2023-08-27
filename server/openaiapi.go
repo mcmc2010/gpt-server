@@ -125,8 +125,9 @@ func (I *API_HTTPData) StartTime() {
 	I.elapsed_time = 0
 }
 
-func (I *API_HTTPData) EndTime() {
+func (I *API_HTTPData) EndTime() int {
 	I.elapsed_time = int(time.Now().UnixMilli() - I.tick)
+	return I.elapsed_time
 }
 
 func (I *API_HTTPData) UserAgent() string {
@@ -251,6 +252,11 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 		KeepAlive: 60 * time.Second,
 	}
 
+	//Post timeout
+	if data.Method == http.MethodPost {
+		timeout = 3.0 * 1000
+	}
+
 	var client = &http.Client{
 		Timeout: time.Millisecond * time.Duration(timeout),
 		Transport: &http.Transport{
@@ -336,6 +342,13 @@ func API_HTTPRequest(base_url string, path string, data *API_HTTPData) *API_HTTP
 	response, err := client.Do(request)
 	if err != nil {
 		utils.Logger.LogError("(API) Request Error: ", err)
+
+		data.ErrorCode = -1
+		data.ErrorMessage = err.Error()
+
+		if strings.Contains(err.Error(), "Client.Timeout") {
+			data.ErrorMessage = fmt.Sprintf("Request timeout (%dms)", data.EndTime())
+		}
 		return nil
 	}
 
@@ -452,9 +465,12 @@ func API_HTTPReadableStreamChunkedData(reader *io.Reader, chunks *[][]byte) int 
 	if result > 0 {
 		result = API_HTTPReadableStreamChunkedData(reader, chunks)
 		if result < 0 {
-			return -1
+			return result
 		}
 	} else if result < 0 {
+		if strings.Contains(err.Error(), "Client.Timeout") {
+			return -2
+		}
 		return -1
 	}
 
@@ -473,9 +489,14 @@ func API_HTTPReadableStreamChunked(reader *io.Reader, data *API_HTTPData, buffer
 	if result < 0 {
 		data.ErrorCode = -2
 		data.ErrorMessage = "Read stream chunked error."
-
-		utils.Logger.LogError("(API) Response Body Error: ", "Read stream chunked error.")
-		return -1
+		var elapsed_time = data.EndTime()
+		if result == -2 {
+			//nothing
+			data.ErrorMessage = fmt.Sprintf("Read stream chunked timeout. (%dms)", elapsed_time)
+		} else {
+			utils.Logger.LogError("(API) Response Body Error: ", "Read stream chunked error.")
+			return -1
+		}
 	}
 
 	chunks_count = len(chunks)
@@ -488,6 +509,7 @@ func API_HTTPReadableStreamChunked(reader *io.Reader, data *API_HTTPData, buffer
 	if length > 0 {
 		if data.Body == nil {
 			data.Length = 0
+			data.BodyType = "binary"
 			data.Body = []byte{}
 		}
 		data.Body = append(data.Body.([]byte), *buffer...)
@@ -512,6 +534,9 @@ func API_HTTPReadableStreamAsync(reader *io.Reader, data *API_HTTPData) int {
 		return -1
 	}
 	if data.StreamCallback != nil {
+		if data.ErrorCode < 0 {
+			index = -1
+		}
 		data.StreamCallback(index, &buffer, length)
 	}
 
