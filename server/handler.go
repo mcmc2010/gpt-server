@@ -26,6 +26,7 @@ func HandleResultError(ctx *gin.Context, code int, message string) {
 	if !ctx.IsAborted() {
 		ctx.JSON(http.StatusBadRequest, result)
 	}
+	ctx.Abort()
 }
 
 func HandleResultFailed(ctx *gin.Context, code int, message string) {
@@ -36,35 +37,39 @@ func HandleResultFailed(ctx *gin.Context, code int, message string) {
 	if !ctx.IsAborted() {
 		ctx.JSON(http.StatusOK, result)
 	}
+	ctx.Abort()
 }
 
-func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData) {
-	if data.ErrorCode == http.StatusUnauthorized {
-		result := data.Data().(map[string]any)
-		if result == nil {
-			result = map[string]any{
-				"error": nil,
+func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
+	if data != nil {
+		if data.ErrorCode == http.StatusUnauthorized {
+			result := data.Data().(map[string]any)
+			if result == nil {
+				result = map[string]any{
+					"error": nil,
+				}
+			}
+			result["error_code"] = data.ErrorCode
+			result["error_message"] = data.ErrorMessage
+
+			if !ctx.IsAborted() {
+				ctx.JSON(http.StatusOK, result)
+			}
+		} else {
+			if !ctx.IsAborted() {
+				ctx.JSON(http.StatusOK, gin.H{
+					"error_code":    data.ErrorCode,
+					"error_message": data.ErrorMessage,
+					"error":         nil,
+				})
 			}
 		}
-		result["error_code"] = data.ErrorCode
-		result["error_message"] = data.ErrorMessage
-
-		if !ctx.IsAborted() {
-			ctx.JSON(http.StatusOK, result)
-		}
-	} else {
-		if !ctx.Writer.Written() {
-			ctx.JSON(http.StatusOK, gin.H{
-				"error_code":    data.ErrorCode,
-				"error_message": data.ErrorMessage,
-				"error":         nil,
-			})
-		}
 	}
+	ctx.Abort()
 }
 
 func HandleOpenAIModels(ctx *gin.Context) {
-	data := API_GPTModels()
+	data := API_GPTModels2()
 	if data.ErrorCode != API_HTTP_RESULT_OK {
 		HandleResultFailed2(ctx, data)
 		return
@@ -95,9 +100,14 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 	//context := ctx.Request.Context()
 	ctx_context, ctx_cancel := context.WithCancel(ctx.Request.Context())
 
-	var data *API_HTTPData
-	data = API_GPTCompletions(body, func(index int, buffer *[]byte, length int) {
+	var data *API_HTTPData2
+	data = API_GPTCompletions2("", func(index int, buffer *[]byte, length int) {
 		defer ctx_cancel()
+
+		if ctx.IsAborted() {
+			return
+		}
+
 		if index < 0 {
 			HandleResultFailed2(ctx, data)
 			return
