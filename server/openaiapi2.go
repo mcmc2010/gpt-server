@@ -35,7 +35,7 @@ type API_HTTPData2 struct {
 	elapsed_time int //milliseconds
 
 	//
-	CallbackStream func(index int, buffer *[]byte, length int)
+	CallbackStream func(index int, buffer *[]byte, length int, data *API_HTTPData2)
 
 	//
 	ErrorCode    int
@@ -427,7 +427,7 @@ func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPD
 	length = API_HTTPReadableStreamChunked2(&reader, data, &buffer)
 	if length < 0 {
 		if data.CallbackStream != nil {
-			data.CallbackStream(-1, nil, 0)
+			data.CallbackStream(-1, nil, 0, data)
 		}
 		return -1
 	}
@@ -435,7 +435,7 @@ func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPD
 		if data.ErrorCode < 0 {
 			index = -1
 		}
-		data.CallbackStream(index, &buffer, length)
+		data.CallbackStream(index, &buffer, length, data)
 	}
 
 	index++
@@ -468,7 +468,7 @@ func API_GPTModels2() *API_HTTPData2 {
 	return &data
 }
 
-func API_GPTCompletions2(payload any, ondata func(int, *[]byte, int)) *API_HTTPData2 {
+func API_GPTCompletions2(payload any, ondata func(int, *[]byte, int, *API_HTTPData2)) *API_HTTPData2 {
 	data := API_HTTPData2{
 		Method:     http.MethodPost,
 		SkipVerify: true,
@@ -476,13 +476,15 @@ func API_GPTCompletions2(payload any, ondata func(int, *[]byte, int)) *API_HTTPD
 		Payload:    payload,
 		//
 		HasStream: true,
-		CallbackStream: func(index int, buffer *[]byte, length int) {
+		CallbackStream: func(index int, buffer *[]byte, length int, sender *API_HTTPData2) {
 			if ondata != nil {
-				ondata(index, buffer, length)
+				ondata(index, buffer, length, sender)
 			}
 		},
 	}
 
 	API_HTTPRequest2(http_base_url, "/v1/chat/completions", &data)
+
+	utils.Logger.Log("(API) Request GPTCompletions (Time: ", data.EndTime(), "ms)")
 	return &data
 }

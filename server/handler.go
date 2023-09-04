@@ -41,30 +41,33 @@ func HandleResultFailed(ctx *gin.Context, code int, message string) {
 }
 
 func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
-	if data != nil {
-		if data.ErrorCode == http.StatusUnauthorized {
-			result := data.Data().(map[string]any)
-			if result == nil {
-				result = map[string]any{
-					"error": nil,
-				}
-			}
-			result["error_code"] = data.ErrorCode
-			result["error_message"] = data.ErrorMessage
+	if data == nil {
+		return
+	}
 
-			if !ctx.IsAborted() {
-				ctx.JSON(http.StatusOK, result)
-			}
-		} else {
-			if !ctx.IsAborted() {
-				ctx.JSON(http.StatusOK, gin.H{
-					"error_code":    data.ErrorCode,
-					"error_message": data.ErrorMessage,
-					"error":         nil,
-				})
+	if data.ErrorCode == http.StatusUnauthorized {
+		result := data.Data().(map[string]any)
+		if result == nil {
+			result = map[string]any{
+				"error": nil,
 			}
 		}
+		result["error_code"] = data.ErrorCode
+		result["error_message"] = data.ErrorMessage
+
+		if !ctx.IsAborted() {
+			ctx.JSON(http.StatusOK, result)
+		}
+	} else {
+		if !ctx.IsAborted() {
+			ctx.JSON(http.StatusOK, gin.H{
+				"error_code":    data.ErrorCode,
+				"error_message": data.ErrorMessage,
+				"error":         nil,
+			})
+		}
 	}
+
 	ctx.Abort()
 }
 
@@ -100,16 +103,17 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 	//context := ctx.Request.Context()
 	ctx_context, ctx_cancel := context.WithCancel(ctx.Request.Context())
 
-	var data *API_HTTPData2
-	data = API_GPTCompletions2("", func(index int, buffer *[]byte, length int) {
+	var data *API_HTTPData2 = nil
+
+	data = API_GPTCompletions2(body, func(index int, buffer *[]byte, length int, sender *API_HTTPData2) {
 		defer ctx_cancel()
 
-		if ctx.IsAborted() {
+		if ctx.IsAborted() || sender.ErrorCode != API_HTTP_RESULT_OK {
 			return
 		}
 
 		if index < 0 {
-			HandleResultFailed2(ctx, data)
+			HandleResultFailed2(ctx, sender)
 			return
 		}
 
