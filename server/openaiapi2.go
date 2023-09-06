@@ -176,28 +176,34 @@ func API_HTTPRequest2(base_url string, path string, data *API_HTTPData2) *API_HT
 	//
 	user_agent := data.UserAgent()
 
-	var body any = nil
+	var body io.Reader = nil
 	//Post timeout
 	if data.Method == http.MethodPost {
 		timeout = 3.0 * 1000
 
+		var payload = ""
+
 		//
 		switch data.Payload.(type) {
 		case string:
-			body = data.Payload.(string)
+			payload = data.Payload.(string)
 		case int16:
 		case int32:
 		case int8:
-			body = fmt.Sprintf("%d", data.Payload)
+			payload = fmt.Sprintf("%d", data.Payload)
 		case nil:
-			body = ""
+			payload = ""
 		default:
 			bytes, err := json.Marshal(data.Payload)
 			if err != nil {
-				body = fmt.Sprintf("%+v", data.Payload)
+				payload = fmt.Sprintf("%+v", data.Payload)
 			} else {
-				body = string(bytes)
+				payload = string(bytes)
 			}
+		}
+
+		if len(payload) > 0 {
+			body = strings.NewReader(payload)
 		}
 	}
 
@@ -227,12 +233,7 @@ func API_HTTPRequest2(base_url string, path string, data *API_HTTPData2) *API_HT
 
 	var response *httpclient.Response
 	var err error
-	if data.Method == http.MethodPost {
-		response, err = client.Post(url, body)
-	} else {
-		response, err = client.Get(url)
-	}
-
+	response, err = client.Do(data.Method, url, nil, body)
 	if err != nil {
 		utils.Logger.LogError("(API) Request Error: ", err)
 
@@ -340,7 +341,7 @@ func API_HTTPReadable2(response *httpclient.Response, data *API_HTTPData2) int {
 	return 0
 }
 
-func API_HTTPReadableStreamChunkedData2(reader *io.Reader, chunks *[][]byte) int {
+func API_HTTPReadableStreamChunkedData2(reader *io.Reader, chunks *[]byte) int {
 	var result int = 1
 	var bytes []byte = make([]byte, 256) //make([]byte, 4096)
 	count, err := (*reader).Read(bytes)
@@ -353,23 +354,18 @@ func API_HTTPReadableStreamChunkedData2(reader *io.Reader, chunks *[][]byte) int
 	}
 
 	if count > 0 {
-		*chunks = append(*chunks, bytes[0:count])
+		*chunks = append(*chunks, bytes[0:count]...)
 	}
 
 	// 如果数据还没有全部读取，则继续读取下一块数据
-	if result > 0 {
-		result = API_HTTPReadableStreamChunkedData(reader, chunks)
-		if result < 0 {
-			return result
-		}
-	} else if result < 0 {
+	if result < 0 {
 		if strings.Contains(err.Error(), "Client.Timeout") {
 			return -2
 		}
 		return -1
 	}
 
-	return 0
+	return count
 }
 
 func API_HTTPReadableStreamChunked2(reader *io.Reader, data *API_HTTPData2, buffer *[]byte) int {
@@ -377,7 +373,7 @@ func API_HTTPReadableStreamChunked2(reader *io.Reader, data *API_HTTPData2, buff
 	*buffer = make([]byte, 0)
 
 	//
-	var chunks [][]byte
+	var chunks []byte
 	var chunks_count int = 0
 
 	result := API_HTTPReadableStreamChunkedData2(reader, &chunks)
@@ -397,7 +393,7 @@ func API_HTTPReadableStreamChunked2(reader *io.Reader, data *API_HTTPData2, buff
 	chunks_count = len(chunks)
 	for i := 0; i < chunks_count; i++ {
 		temp := chunks[i]
-		*buffer = append(*buffer, temp...)
+		*buffer = append(*buffer, temp)
 	}
 
 	length := len(*buffer)
@@ -419,26 +415,61 @@ func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPD
 	reader := io.Reader(response.Body)
 	defer response.Body.Close()
 
+	if data.Content == nil {
+		data.ContentType = "binary"
+		data.Content = []byte{}
+		data.ContentLength = 0
+	}
+
 	//
 	var buffer []byte
 	var index int = 0
 	var length int = 0
 
-	length = API_HTTPReadableStreamChunked2(&reader, data, &buffer)
-	if length < 0 {
+	//
+	var chunk []byte
+	var chunks_count int = 0
+
+	//
+	var count = 0
+	for {
+		count = API_HTTPReadableStreamChunkedData2(&reader, &chunk)
+		if count <= 0 {
+			break
+		}
+
+		chunks_count++
+
+		buffer = append(buffer, chunk...)
+		length += count
+
+		index++
+	}
+
+	if count < 0 {
+		data.ErrorCode = -2
+		data.ErrorMessage = "Read stream chunked error."
+		var elapsed_time = data.EndTime()
+		if count == -2 {
+			//nothing
+			data.ErrorMessage = fmt.Sprintf("Read stream chunked timeout. (%dms)", elapsed_time)
+		} else {
+			utils.Logger.LogError("(API) Response Body Error: ", "Read stream chunked error.")
+		}
 		if data.CallbackStream != nil {
+			if length > 0 {
+				data.CallbackStream(-1, &buffer, length, data)
+			}
 			data.CallbackStream(-1, nil, 0, data)
 		}
 		return -1
-	}
-	if data.CallbackStream != nil {
-		if data.ErrorCode < 0 {
-			index = -1
-		}
-		data.CallbackStream(index, &buffer, length, data)
+	} else if count == 0 {
+
 	}
 
-	index++
+	data.Content = append(data.Content.([]byte), buffer...)
+	data.ContentLength += length
+
 	return 0
 }
 
