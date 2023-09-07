@@ -106,24 +106,30 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 	var data *API_HTTPData2 = nil
 
 	data = API_GPTCompletions2(body, func(index int, buffer *[]byte, length int, sender *API_HTTPData2) {
-		defer ctx_cancel()
 
 		if ctx.IsAborted() || sender.ErrorCode != API_HTTP_RESULT_OK {
+			ctx_cancel()
 			return
 		}
 
 		if index < 0 {
 			HandleResultFailed2(ctx, sender)
+			ctx_cancel()
 			return
 		}
 
 		_, err := ctx.Writer.Write(*buffer)
 		if err != nil {
 			HandleResultFailed(ctx, -10, "Write stream failed.")
+			ctx_cancel()
 			return
 		}
 
-		ctx.Writer.Flush()
+		// End
+		if index == 0 && length == 0 {
+			ctx.Writer.Flush()
+			ctx_cancel()
+		}
 	})
 
 	if data.ErrorCode != API_HTTP_RESULT_OK {

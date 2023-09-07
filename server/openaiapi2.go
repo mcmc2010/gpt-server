@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -368,48 +369,6 @@ func API_HTTPReadableStreamChunkedData2(reader *io.Reader, chunks *[]byte) int {
 	return count
 }
 
-func API_HTTPReadableStreamChunked2(reader *io.Reader, data *API_HTTPData2, buffer *[]byte) int {
-
-	*buffer = make([]byte, 0)
-
-	//
-	var chunks []byte
-	var chunks_count int = 0
-
-	result := API_HTTPReadableStreamChunkedData2(reader, &chunks)
-	if result < 0 {
-		data.ErrorCode = -2
-		data.ErrorMessage = "Read stream chunked error."
-		var elapsed_time = data.EndTime()
-		if result == -2 {
-			//nothing
-			data.ErrorMessage = fmt.Sprintf("Read stream chunked timeout. (%dms)", elapsed_time)
-		} else {
-			utils.Logger.LogError("(API) Response Body Error: ", "Read stream chunked error.")
-			return -1
-		}
-	}
-
-	chunks_count = len(chunks)
-	for i := 0; i < chunks_count; i++ {
-		temp := chunks[i]
-		*buffer = append(*buffer, temp)
-	}
-
-	length := len(*buffer)
-	if length > 0 {
-		if data.Content == nil {
-			data.ContentType = "binary"
-			data.Content = []byte{}
-			data.ContentLength = 0
-		}
-		data.Content = append(data.Content.([]byte), *buffer...)
-		data.ContentLength += length
-	}
-
-	return length
-}
-
 func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPData2) int {
 
 	reader := io.Reader(response.Body)
@@ -428,21 +387,41 @@ func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPD
 
 	//
 	var chunk []byte
-	var chunks_count int = 0
+	var chunk_data []byte
+	var chunk_length int = 0
 
 	//
 	var count = 0
 	for {
-		count = API_HTTPReadableStreamChunkedData2(&reader, &chunk)
+
+		count = API_HTTPReadableStreamChunkedData2(&reader, &chunk_data)
 		if count <= 0 {
 			break
 		}
 
-		chunks_count++
+		pos := bytes.IndexAny(chunk_data, "\n\n") //bytes.IndexByte(chunk_data, byte('\n'))
+		if pos < 0 {
+			continue
+		} else {
+			pos += len("\n\n")
+			chunk = chunk_data[0:pos]
+			if pos < len(chunk_data) {
+				chunk_data = chunk_data[pos:]
+			} else {
+				chunk_data = make([]byte, 0)
+			}
+		}
+
+		chunk_length = len(chunk)
 
 		buffer = append(buffer, chunk...)
-		length += count
+		length += chunk_length
 
+		if data.CallbackStream != nil {
+			data.CallbackStream(index, &chunk, chunk_length, data)
+		}
+
+		chunk = make([]byte, 0)
 		index++
 	}
 
@@ -459,12 +438,15 @@ func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPD
 		if data.CallbackStream != nil {
 			if length > 0 {
 				data.CallbackStream(-1, &buffer, length, data)
+			} else {
+				data.CallbackStream(-1, nil, 0, data)
 			}
-			data.CallbackStream(-1, nil, 0, data)
 		}
 		return -1
 	} else if count == 0 {
-
+		if data.CallbackStream != nil {
+			data.CallbackStream(0, nil, 0, data)
+		}
 	}
 
 	data.Content = append(data.Content.([]byte), buffer...)
