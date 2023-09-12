@@ -118,11 +118,13 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 			return
 		}
 
-		_, err := ctx.Writer.Write(*buffer)
-		if err != nil {
-			HandleResultFailed(ctx, -10, "Write stream failed.")
-			ctx_cancel()
-			return
+		if buffer != nil {
+			_, err := ctx.Writer.Write(*buffer)
+			if err != nil {
+				HandleResultFailed(ctx, -10, "Write stream failed.")
+				ctx_cancel()
+				return
+			}
 		}
 
 		// End

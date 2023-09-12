@@ -369,6 +369,36 @@ func API_HTTPReadableStreamChunkedData2(reader *io.Reader, chunks *[]byte) int {
 	return count
 }
 
+func API_HTTPParseStreamChunkedData2(data *[]byte, chunks *[][]byte) int {
+
+	var buffer = *data
+	for {
+		l := len(buffer)
+		pos := bytes.IndexByte(buffer, byte('\n'))
+		if pos < 0 {
+			break
+		}
+
+		pos++
+		if pos+1 < l && buffer[pos+1] == '\n' {
+			pos++
+		}
+
+		var chunk []byte = buffer[0:pos]
+		*chunks = append(*chunks, chunk)
+
+		if pos < l {
+			buffer = buffer[pos:]
+		} else {
+			buffer = make([]byte, 0)
+		}
+	}
+
+	*data = buffer
+	var count = len(*chunks)
+	return count
+}
+
 func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPData2) int {
 
 	reader := io.Reader(response.Body)
@@ -386,7 +416,6 @@ func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPD
 	var length int = 0
 
 	//
-	var chunk []byte
 	var chunk_data []byte
 	var chunk_length int = 0
 
@@ -399,30 +428,20 @@ func API_HTTPReadableStream2Async(response *httpclient.Response, data *API_HTTPD
 			break
 		}
 
-		pos := bytes.IndexAny(chunk_data, "\n\n") //bytes.IndexByte(chunk_data, byte('\n'))
-		if pos < 0 {
-			continue
-		} else {
-			pos += len("\n\n")
-			chunk = chunk_data[0:pos]
-			if pos < len(chunk_data) {
-				chunk_data = chunk_data[pos:]
-			} else {
-				chunk_data = make([]byte, 0)
+		var chunks [][]byte = [][]byte{}
+		if API_HTTPParseStreamChunkedData2(&chunk_data, &chunks) > 0 {
+			for i := 0; i < len(chunks); i++ {
+				chunk_length = len(chunks[i])
+				buffer = append(buffer, chunks[i]...)
+				length += chunk_length
+
+				if data.CallbackStream != nil {
+					data.CallbackStream(index, &chunks[i], chunk_length, data)
+				}
+
+				index++
 			}
 		}
-
-		chunk_length = len(chunk)
-
-		buffer = append(buffer, chunk...)
-		length += chunk_length
-
-		if data.CallbackStream != nil {
-			data.CallbackStream(index, &chunk, chunk_length, data)
-		}
-
-		chunk = make([]byte, 0)
-		index++
 	}
 
 	if count < 0 {
