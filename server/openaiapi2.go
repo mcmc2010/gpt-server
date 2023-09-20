@@ -16,6 +16,17 @@ import (
 	"mcmcx.com/gpt-server/utils"
 )
 
+
+
+const (
+	API_HTTP_RESULT_ERROR  = -1
+	API_HTTP_RESULT_OK     = 0
+	API_HTTP_RESULT_FAILED = 1
+)
+
+var http_base_url = ""
+var http_additional_headers map[string]string = map[string]string{}
+
 type API_HTTPData2 struct {
 	url        string
 	Method     string
@@ -480,6 +491,16 @@ func API_HTTPReadableStream2(response *httpclient.Response, data *API_HTTPData2)
 
 	return 0
 }
+
+
+//
+func API_GPTInit(config Config) {
+	http_base_url = config.APIUrl
+
+	http_additional_headers["Openai-Organization"] = config.APIOrganization
+	http_additional_headers["Authorization"] = fmt.Sprintf("Bearer %s", config.APIKey)
+}
+
 
 // OpenAI API : Models
 // curl https://api.openai.com/v1/models \

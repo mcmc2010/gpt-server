@@ -57,8 +57,9 @@ func InitServer(config Config, mode string) *Server {
 
 	// custom logs
 	router.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+
 		// your custom format
-		var text = fmt.Sprintf("[%s] (%s) | %s \"%s\" (%s, %d, %s)",
+		var text = fmt.Sprintf("[%s] (%s) | %s \"%s\" (%s, %d, %s, %0.2fkb) (%s)",
 			param.TimeStamp.Format(time.RFC3339),
 			param.ClientIP,
 			param.Method,
@@ -66,7 +67,8 @@ func InitServer(config Config, mode string) *Server {
 			param.Request.Proto,
 			param.StatusCode,
 			param.Latency,
-			//param.Request.UserAgent(),
+			float32(param.BodySize)/1024,
+			param.Request.UserAgent(),
 			//param.ErrorMessage,
 		)
 
@@ -149,8 +151,10 @@ func register_handlers(router *gin.Engine) bool {
 	router.GET("/ping", HandlePing)
 
 	// OpenAI API
-	router.Any("/api/v1/models", HandleOpenAIModels)
-	router.POST("/api/v1/chat/completions", HandleOpenAICompletions)
+	//router.Any("/api/v1/models", HandleOpenAIModels)
+	//router.POST("/api/v1/chat/completions", HandleOpenAICompletions)
+	router.Any("/server/v1/models", HandleOpenAIModels)
+	router.POST("/server/v1/chat/completions", HandleOpenAICompletions)
 
 	//
 	return true

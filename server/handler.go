@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -81,18 +82,26 @@ func HandleOpenAIModels(ctx *gin.Context) {
 }
 
 func HandleOpenAICompletions(ctx *gin.Context) {
-	var bytes []byte = make([]byte, ctx.Request.ContentLength)
+	for k, v := range ctx.Request.Header {
+		utils.Logger.Log(k, v)
+	}
+
+	var content_length int = int(ctx.Request.ContentLength);
+	var bytes []byte = make([]byte, content_length)
 	length, err := ctx.Request.Body.Read(bytes)
-	if length == 0 || err != nil {
-		HandleResultFailed(ctx, -9, "Your HTTP request body is null or not in JSON format. Rejected your request.")
+	if(err != nil && err != io.EOF || length < content_length) {
+		utils.Logger.LogWarning("request context length:", length, ", Error:", err)
+		HandleResultFailed(ctx, -9, "Your HTTP request body is null. Rejected your request.")
 		return
 	}
+
 	defer ctx.Request.Body.Close()
 
 	var body any
 	err = json.Unmarshal(bytes, &body)
 	if err != nil {
-		HandleResultFailed(ctx, -9, "Your HTTP request body is null or not in JSON format. Rejected your request.")
+		utils.Logger.LogWarning("request context length:", length, ", Error:", err)
+		HandleResultFailed(ctx, -9, "Your HTTP request body not in JSON format. Rejected your request.")
 		return
 	}
 

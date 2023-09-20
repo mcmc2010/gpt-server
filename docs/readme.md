@@ -27,6 +27,13 @@ gzip_types text/plain application/json application/xml
 
 
 ```
+log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for" "$upstream_addr"';
+log_format  server  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '"$http_user_agent" "$http_cookie" "$request_body"';
+
+
     location ~ ^/api/(.*)$ {
 		add_header           "Access-Control-Allow-Headers" "accept,authorization,content-type,content-encoding,cache-control;transfer-encoding,openai-organization";
 		#add_header          "Access-Control-Allow-Credentials" "true";
@@ -55,6 +62,24 @@ gzip_types text/plain application/json application/xml
 		#Windows Add SSLv2 SSLv3
 		#proxy_ssl_protocols         TLSv1 TLSv1.1 TLSv1.2 TLSv1.3 SSLv2 SSLv3;
     }
+
+	location ~ ^/server/(.*)$ {
+		access_log  /var/log/nginx/server.log  server;
+
+		#
+		proxy_set_header 	Host $http_host;
+		proxy_set_header 	X-Real-IP $remote_addr;
+		proxy_set_header 	X-Forwarded-For $remote_addr;
+		proxy_set_header 	X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header    Cookie $http_cookie;
+
+		#
+		proxy_redirect      off;
+		proxy_pass 			https://127.0.0.1:9443;
+	}
+
+
+
 ```
 
 ```
@@ -70,4 +95,12 @@ sudo setsebool httpd_can_network_relay on -P
 getsebool -a | grep httpd
 ```
 
+```
+sudo iptables -I INPUT -s 203.177.89.0/8 -j DROP
+# Only allow ip address:
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="203.177.89.1/24" accept'
+# Not allow hack attack proxy ip address:
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="203.177.89.1/24" reject'
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="64.62.197.1/24" reject'
 
+```
