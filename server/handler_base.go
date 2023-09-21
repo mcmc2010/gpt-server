@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,14 +16,18 @@ import (
 
 type HandlerOptions struct {
 	//
+	NotAllowCORS bool
+
+	//
 	DataType string
 
 	//
-	PrintHeaders bool
+	PrintHeaders   bool
 	PrintUserAgent bool
 }
 
 type Handler struct {
+
 	//
 	Context       *gin.Context
 	Timestamp     uint32
@@ -31,10 +36,10 @@ type Handler struct {
 	Headers       map[string][]string
 	//
 	ContentLength int
-	Data any
-	DataType string
-	Length int
-	
+	Data          any
+	DataType      string
+	Length        int
+
 	//
 	Error error
 }
@@ -45,6 +50,22 @@ func (I *Handler) TimeStamp() uint32 {
 
 func (I *Handler) TimeStamp64() uint64 {
 	return uint64(math.Round(float64(time.Now().UnixMicro()) * 0.001))
+}
+
+func (I *Handler) GetHeader(key string, def string) string {
+	if I.Headers == nil {
+		return def
+	}
+	var value = def
+	for k, v := range I.Headers {
+		if (strings.ToLower(k) == strings.TrimSpace(strings.ToLower(key))) {
+			if len(v) > 0 {
+				value = v[0]
+			}
+			break
+		}
+	}
+	return value
 }
 
 func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
@@ -62,6 +83,19 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	I.Headers = map[string][]string{}
 	maps.Copy(I.Headers, ctx.Request.Header)
 
+	var origin = I.GetHeader("Origin", "*")
+	//var authorization = I.GetHeader("Authorization", "")
+
+	//Response Headers
+	I.Context.Header("Access-Control-Allow-Headers", "accept,authorization,content-type,content-encoding,cache-control;transfer-encoding")
+	I.Context.Header("Access-Control-Expose-Headers", "authorization,content-type,content-encoding,cache-control,transfer-encoding")
+	//Default cors is TRUE
+	if options == nil || !options.NotAllowCORS {
+		I.Context.Header("Access-Control-Allow-Credentials", "true")
+		I.Context.Header("Access-Control-Allow-Origin", origin)
+		I.Context.Header("Access-Control-Allow-Methods", "PUT,POST,GET,DELETE,OPTIONS")
+	}
+
 	//
 	I.ContentLength = 0
 	I.Data = nil
@@ -70,49 +104,49 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	defer ctx.Request.Body.Close()
 
 	//POST method read all payload
-	if(I.Context.Request.Method == http.MethodPost) {
+	if I.Context.Request.Method == http.MethodPost {
 		I.ContentLength = int(ctx.Request.ContentLength)
 		var bytes []byte = make([]byte, I.ContentLength)
 		length, err := ctx.Request.Body.Read(bytes)
-		if(err != nil && err != io.EOF) {
+		if err != nil && err != io.EOF {
 			I.Error = err
 		} else {
 			I.Length = length
-			I.Data = []byte {}
+			I.Data = []byte{}
 			I.DataType = "binary"
-			if(length > 0) {
+			if length > 0 {
 				I.Data = bytes
 			}
 		}
 
-		if(I.Length > 0) {
-			if(I.Length < I.ContentLength) {
+		if I.Length > 0 {
+			if I.Length < I.ContentLength {
 				utils.Logger.LogWarning("Request context length:", I.ContentLength, "Receive length:", I.Length)
 			}
 
 			//Parse data
 			var payload any
 			err = json.Unmarshal(bytes, &payload)
-			if(err == nil) {
+			if err == nil {
 				I.Data = payload
 				I.DataType = "json"
-			} 
+			}
 		}
 	}
 
 	//
-	if(options != nil && len(options.DataType) > 0 && options.DataType != I.DataType) {
-		I.Error = errors.New("request body not ("+ options.DataType +") support format")
+	if options != nil && len(options.DataType) > 0 && options.DataType != I.DataType {
+		I.Error = errors.New("request body not (" + options.DataType + ") support format")
 	}
 
 	if options != nil && options.PrintHeaders {
 		I.PrintHeaders()
 	}
-	if(options != nil && options.PrintUserAgent) {
+	if options != nil && options.PrintUserAgent {
 		I.PrintUserAgent()
 	}
 
-	if(I.Error != nil) {
+	if I.Error != nil {
 		return -1
 	}
 	return 0
@@ -163,7 +197,7 @@ func InitHandler(ctx *gin.Context, options *HandlerOptions) (int, *Handler) {
 	handler := &Handler{}
 	result := handler.Init(ctx, options)
 	if result < 0 {
-		handler.ResultError(-1, "Init handler error: " + handler.Error.Error())
+		handler.ResultError(-1, "Init handler error: "+handler.Error.Error())
 		return result, handler
 	}
 	return 0, handler

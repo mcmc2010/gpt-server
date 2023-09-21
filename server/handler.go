@@ -71,6 +71,11 @@ func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
 }
 
 func HandleOpenAIModels(ctx *gin.Context) {
+	result, _ := InitHandler(ctx, &HandlerOptions{PrintHeaders: true, DataType: "json"})
+	if result < 0 {
+		return
+	}
+
 	data := API_GPTModels2()
 	if data.ErrorCode != API_HTTP_RESULT_OK {
 		HandleResultFailed2(ctx, data)
