@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"time"
 
@@ -82,28 +80,12 @@ func HandleOpenAIModels(ctx *gin.Context) {
 }
 
 func HandleOpenAICompletions(ctx *gin.Context) {
-	for k, v := range ctx.Request.Header {
-		utils.Logger.Log(k, v)
-	}
-
-	var content_length int = int(ctx.Request.ContentLength);
-	var bytes []byte = make([]byte, content_length)
-	length, err := ctx.Request.Body.Read(bytes)
-	if(err != nil && err != io.EOF || length < content_length) {
-		utils.Logger.LogWarning("request context length:", length, ", Error:", err)
-		HandleResultFailed(ctx, -9, "Your HTTP request body is null. Rejected your request.")
+	result, handler := InitHandler(ctx, &HandlerOptions{PrintHeaders: true, DataType: "json"})
+	if result < 0 {
 		return
 	}
 
-	defer ctx.Request.Body.Close()
-
-	var body any
-	err = json.Unmarshal(bytes, &body)
-	if err != nil {
-		utils.Logger.LogWarning("request context length:", length, ", Error:", err)
-		HandleResultFailed(ctx, -9, "Your HTTP request body not in JSON format. Rejected your request.")
-		return
-	}
+	var body = handler.Data
 
 	ctx.Header("Content-Type", "text/event-stream")
 	ctx.Header("Cache-Control", "no-cache")
