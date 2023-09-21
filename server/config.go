@@ -9,6 +9,8 @@ type Config struct {
 	HTTPSPort        int    `yaml:"https_port" json:"https_port" validate:"-"`
 	HTTPSPrivateKey  string `yaml:"https_key" json:"https_key" validate:"-"`
 	HTTPSCertificate string `yaml:"https_cert" json:"https_cert" validate:"-"`
+	//
+	AllowCORS bool `yaml:"cors" json:"cors" validate:"-"`
 
 	// API:
 	APIUrl          string `yaml:"openai_api_url" json:"openai_api_url" validate:"-"`

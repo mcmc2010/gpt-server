@@ -16,9 +16,6 @@ import (
 
 type HandlerOptions struct {
 	//
-	NotAllowCORS bool
-
-	//
 	DataType string
 
 	//
@@ -58,7 +55,7 @@ func (I *Handler) GetHeader(key string, def string) string {
 	}
 	var value = def
 	for k, v := range I.Headers {
-		if (strings.ToLower(k) == strings.TrimSpace(strings.ToLower(key))) {
+		if strings.ToLower(k) == strings.TrimSpace(strings.ToLower(key)) {
 			if len(v) > 0 {
 				value = v[0]
 			}
@@ -83,18 +80,10 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	I.Headers = map[string][]string{}
 	maps.Copy(I.Headers, ctx.Request.Header)
 
-	var origin = I.GetHeader("Origin", "*")
 	//var authorization = I.GetHeader("Authorization", "")
 
-	//Response Headers
-	I.Context.Header("Access-Control-Allow-Headers", "accept,authorization,content-type,content-encoding,cache-control;transfer-encoding")
-	I.Context.Header("Access-Control-Expose-Headers", "authorization,content-type,content-encoding,cache-control,transfer-encoding")
-	//Default cors is TRUE
-	if options == nil || !options.NotAllowCORS {
-		I.Context.Header("Access-Control-Allow-Credentials", "true")
-		I.Context.Header("Access-Control-Allow-Origin", origin)
-		I.Context.Header("Access-Control-Allow-Methods", "PUT,POST,GET,DELETE,OPTIONS")
-	}
+	// Default response headers
+	I.Context.Header("Content-Type", "application/json;charset=utf-8")
 
 	//
 	I.ContentLength = 0

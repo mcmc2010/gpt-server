@@ -25,6 +25,30 @@ type Server struct {
 	router *gin.Engine
 }
 
+func middleware_cors() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		//
+		var origin = "*"
+		var values = ctx.Request.Header["Origin"]
+		if len(values) > 0 {
+			origin = values[0]
+		}
+
+		//Response Headers
+		ctx.Header("Access-Control-Allow-Headers", "accept,authorization,content-type,content-encoding,cache-control,transfer-encoding")
+		ctx.Header("Access-Control-Expose-Headers", "authorization,content-type,content-encoding,cache-control,transfer-encoding")
+		ctx.Header("Access-Control-Allow-Credentials", "true")
+		ctx.Header("Access-Control-Allow-Origin", origin)
+		ctx.Header("Access-Control-Allow-Methods", "PUT,POST,GET,DELETE,OPTIONS")
+
+		//
+		if ctx.Request.Method == http.MethodOptions {
+			ctx.AbortWithStatus(http.StatusNoContent)
+		}
+		ctx.Next()
+	}
+}
+
 func InitServer(config Config, mode string) *Server {
 
 	//
@@ -78,6 +102,10 @@ func InitServer(config Config, mode string) *Server {
 		}
 		return text + "\n"
 	}))
+
+	if config.AllowCORS {
+		router.Use(middleware_cors())
+	}
 
 	//
 	api := router.Group("/api")
