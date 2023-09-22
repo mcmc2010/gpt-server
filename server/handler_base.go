@@ -1,6 +1,7 @@
 package server
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,7 +32,7 @@ type Handler struct {
 
 	//
 	Context       *gin.Context
-	Timestamp     uint32
+	Timestamp     int64
 	RemoteAddress string
 	UserAgent     string
 	Headers       map[string][]string
@@ -76,9 +77,91 @@ func (I *Handler) GetHeader(key string, def string) string {
 	return value
 }
 
+func (I *Handler) GetParamters(paramters any) error {
+	return I.Context.ShouldBindQuery(paramters)
+}
+
+func (I *Handler) GetData(data any) error {
+	if I.DataType == "json" {
+		bytes, err := json.Marshal(I.Data)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(bytes, data)
+	}
+
+	return errors.New("Data not support format")
+}
+
+func (I *Handler) InitData() error {
+
+	//
+	I.ContentLength = 0
+	I.Data = nil
+	I.DataType = "none"
+	I.Length = 0
+
+	var encoding = I.GetHeader("Accept-Encoding", "")
+	if len(encoding) > 0 {
+		encoding = strings.ToLower(strings.TrimSpace(encoding))
+	}
+
+	//
+	defer I.Context.Request.Body.Close()
+
+	//POST method read all payload
+	if I.Context.Request.Method != http.MethodPost {
+		return nil
+	}
+
+	I.ContentLength = int(I.Context.Request.ContentLength)
+	var bytes []byte = make([]byte, I.ContentLength+2)
+	length, err := I.Context.Request.Body.Read(bytes)
+	if err != nil && err != io.EOF {
+		return err
+	}
+	bytes = bytes[0:length]
+
+	// Incomplete data received due to network issues.
+	if err == io.EOF && I.ContentLength > length {
+		return err
+	} else if I.ContentLength > length && err == nil && encoding == "gzip" {
+		reader, err := gzip.NewReader(I.Context.Request.Body)
+		if err != nil {
+			return err
+		}
+		length, err = reader.Read(bytes)
+		if err != nil {
+			return err
+		}
+		reader.Close()
+	}
+
+	I.Length = length
+	I.Data = []byte{}
+	I.DataType = "binary"
+
+	if I.Length > 0 {
+		I.Data = bytes
+
+		if I.Length < I.ContentLength {
+			utils.Logger.LogWarning("Request context length:", I.ContentLength, "Receive length:", I.Length)
+		}
+
+		//Parse data
+		var payload any
+		err = json.Unmarshal(bytes, &payload)
+		if err == nil {
+			I.Data = payload
+			I.DataType = "json"
+		}
+	}
+	return nil
+}
+
 func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	I.Context = ctx
-	I.Timestamp = uint32(I.TimeStamp64())
+	I.Timestamp = int64(I.TimeStamp64())
 
 	//
 	I.RemoteAddress = ctx.RemoteIP()
@@ -94,7 +177,7 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	var authorization_data TAuthorizationData = TAuthorizationData{}
 	var authorization_text = I.GetHeader("Authorization", "")
 	if len(authorization_text) == 0 {
-		err := ctx.ShouldBind(&authorization_data)
+		err := I.GetParamters(&authorization_data)
 		if err != nil {
 			I.Error = err
 		} else {
@@ -106,42 +189,7 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	I.Context.Header("Content-Type", "application/json;charset=utf-8")
 
 	//
-	I.ContentLength = 0
-	I.Data = nil
-	I.DataType = "none"
-	I.Length = 0
-	defer ctx.Request.Body.Close()
-
-	//POST method read all payload
-	if I.Context.Request.Method == http.MethodPost {
-		I.ContentLength = int(ctx.Request.ContentLength)
-		var bytes []byte = make([]byte, I.ContentLength)
-		length, err := ctx.Request.Body.Read(bytes)
-		if err != nil && err != io.EOF {
-			I.Error = err
-		} else {
-			I.Length = length
-			I.Data = []byte{}
-			I.DataType = "binary"
-			if length > 0 {
-				I.Data = bytes
-			}
-		}
-
-		if I.Length > 0 {
-			if I.Length < I.ContentLength {
-				utils.Logger.LogWarning("Request context length:", I.ContentLength, "Receive length:", I.Length)
-			}
-
-			//Parse data
-			var payload any
-			err = json.Unmarshal(bytes, &payload)
-			if err == nil {
-				I.Data = payload
-				I.DataType = "json"
-			}
-		}
-	}
+	I.Error = I.InitData()
 
 	//
 	if options != nil && len(options.DataType) > 0 && options.DataType != I.DataType {

@@ -194,6 +194,10 @@ func register_handlers(router *gin.Engine) bool {
 	//
 	router.GET("/ping", HandlePing)
 
+	// Server
+	router.Any("/server/ping", HandlePing)
+	router.POST("server/login", HandleUserLogin)
+
 	// OpenAI API
 	//router.Any("/api/v1/models", HandleOpenAIModels)
 	//router.POST("/api/v1/chat/completions", HandleOpenAICompletions)
