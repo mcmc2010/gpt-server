@@ -1,28 +1,34 @@
-package database
+package server
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"os"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/redis/go-redis/v9/internal/util"
-	"mcmcx.com/gpt-server/database"
+	"gopkg.in/yaml.v3"
+	"mcmcx.com/gpt-server/database/redis"
 	"mcmcx.com/gpt-server/utils"
 )
 
-//
 const LOG_REDIS = "REDIS"
 
-var redis_info database.TInfo
+var redis_info database_redis.Config
 var redis_instance *redis.Client = nil
 
-//
-func redis_loadinfo(filename string) bool {
+func redis_loadconfig(filename string) bool {
 
 	//
-	if !utils.LoadJsonFromFile[database.TInfo](filename, &redis_info) {
-		utils.Logger.LogError("[Load] Read redis info fail")
+	bytes, err := os.ReadFile(filename)
+	if err != nil {
+		utils.Logger.LogError("[Load] Read file config.yaml error: ", err)
+		return false
+	}
+
+	err = yaml.Unmarshal(bytes, &redis_info)
+	if err != nil {
+		utils.Logger.LogError("[Load] Parse config.yaml error: %s", err)
 		return false
 	}
 
@@ -33,39 +39,38 @@ func redis_loadinfo(filename string) bool {
 
 	if len(redis_info.TLSKey) > 0 && len(redis_info.TLSCrt) > 0 {
 		redis_info.UseTLS = true
-		utils.Logger.LogWithName(LOG_REDIS, "[Load] Use TLS (OK)")
+		utils.LogWithName(LOG_REDIS, "[Load] Redis Use TLS (OK)")
 	}
 
 	return true
 }
 
-//
 func RedisRelease() int {
-	return database.Release()
+	return database_redis.Release()
 }
 
-//
 func RedisInitialize(filename string) bool {
 
-	utils.Logger.LogAdd(logout.LogLevel_Info, LOG_REDIS, true, true)
+	//
+	utils.LogAdd(utils.LogLevel_Info, LOG_REDIS, true, true)
 
 	//
-	if !redis_loadinfo(filename) {
-		logout.LogError("[Load] redis information server error")
+	if !redis_loadconfig(filename) {
+		utils.Logger.LogError("[Load] redis information server error")
 		return false
 	}
 
 	//
 	var tls_config *tls.Config = nil
 	if redis_info.UseTLS {
-		pool := util.LoadCertCAFromFile(redis_info.TLSCA)
+		pool := utils.LoadCertCAFromFile(redis_info.TLSCA)
 		if pool == nil {
-			logout.LogWithName(LOG_REDIS, "[Load] Load TLS Error : CA file (", redis_info.TLSCA, ")")
+			utils.LogWithName(LOG_REDIS, "[Load] Load TLS Error : CA file (", redis_info.TLSCA, ")")
 			return false
 		}
-		cert := util.LoadCertFromFiles(redis_info.TLSCrt, redis_info.TLSKey)
+		cert := utils.LoadCertFromFiles(redis_info.TLSCrt, redis_info.TLSKey)
 		if cert == nil {
-			logout.LogWithName(LOG_REDIS, "[Load] Load TLS Error : key file (", redis_info.TLSKey, "), crt file (", redis_info.TLSCrt, ")")
+			utils.LogWithName(LOG_REDIS, "[Load] Load TLS Error : key file (", redis_info.TLSKey, "), crt file (", redis_info.TLSCrt, ")")
 			return false
 		}
 
@@ -98,9 +103,9 @@ func RedisInitialize(filename string) bool {
 	}
 	redis_info.TLSConfig = tls_config
 
-	redis_instance = mredis.NewAndInitialize(&redis_info)
+	redis_instance = database_redis.NewAndInitialize(&redis_info)
 	if redis_instance == nil {
-		logout.LogError("[Load] Connect redis server error")
+		utils.Logger.LogError("[Load] Connect redis server error")
 		return false
 	}
 

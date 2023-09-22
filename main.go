@@ -25,9 +25,14 @@ func main() {
 	var config server.Config
 	err = yaml.Unmarshal(bytes, &config)
 	if err != nil {
-		logger.LogError("parse config.yaml error: %s", err)
+		logger.LogError("parse config.yaml error: ", err)
 		return
 	}
+
+	//Redis
+	//if !server.RedisInitialize("config.yaml") {
+	//	//return
+	//}
 
 	//ChatGPT
 	server.API_GPTInit(config)

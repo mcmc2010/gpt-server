@@ -11,6 +11,18 @@ port: 9000
 https_port: 9443
 https_key: "certs/https_rsa_2048.pem.unsecure"
 https_cert: "certs/https.crt"
+# CORS
+allow_domains: true
+allow_domains_list: []
+
+# Redis
+redis_port: 6379
+redis_address: "127.0.0.1"
+redis_user: ""
+redis_pass: "123456"
+redis_tls_key: "certs/redis_rsa_2048.pem.unsecure"
+redis_tls_crt: "certs/redis.crt"
+redis_tls_ca: "certs/ca.crt"
 
 # OpenAI ChatGPT API
 openai_api_url: "https://api.openai.com/"

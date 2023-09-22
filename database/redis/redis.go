@@ -1,4 +1,4 @@
-package database
+package database_redis
 
 import (
 	"context"
@@ -12,15 +12,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisInfo struct {
-	Port      int    `json:"redis_port"`
-	Address   string `json:"redis_address"`
-	Username  string `json:"redis_user"`
-	Password  string `json:"redis_pass"`
+type Config struct {
+	Port      int    `yaml:"redis_port" json:"redis_port"`
+	Address   string `yaml:"redis_address" json:"redis_address"`
+	Username  string `yaml:"redis_user" json:"redis_user"`
+	Password  string `yaml:"redis_pass" json:"redis_pass"`
 	UseTLS    bool
-	TLSKey    string `json:"redis_tls_key"`
-	TLSCrt    string `json:"redis_tls_crt"`
-	TLSCA     string `json:"redis_tls_ca"`
+	TLSKey    string `yaml:"redis_tls_key" json:"redis_tls_key"`
+	TLSCrt    string `yaml:"redis_tls_crt" json:"redis_tls_crt"`
+	TLSCA     string `yaml:"redis_tls_ca" json:"redis_tls_ca"`
 	TLSConfig *tls.Config
 }
 
@@ -46,7 +46,7 @@ func Release() int {
 }
 
 // Only one instance
-func NewAndInitialize(info *RedisInfo) *redis.Client {
+func NewAndInitialize(info *Config) *redis.Client {
 	if _instance != nil {
 		return _instance
 	}

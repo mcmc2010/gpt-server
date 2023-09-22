@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -15,6 +16,9 @@ import (
 )
 
 type HandlerOptions struct {
+	//
+	HasAuthorization bool
+
 	//
 	DataType string
 
@@ -39,6 +43,13 @@ type Handler struct {
 
 	//
 	Error error
+}
+
+// API: Authorization
+type TAuthorizationData struct {
+	IDX       string `form:"idx"`
+	AuthCode  string `form:"auth_code"`
+	AuthToken string `form:"auth_token"`
 }
 
 func (I *Handler) TimeStamp() uint32 {
@@ -80,7 +91,16 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	I.Headers = map[string][]string{}
 	maps.Copy(I.Headers, ctx.Request.Header)
 
-	//var authorization = I.GetHeader("Authorization", "")
+	var authorization_data TAuthorizationData = TAuthorizationData{}
+	var authorization_text = I.GetHeader("Authorization", "")
+	if len(authorization_text) == 0 {
+		err := ctx.ShouldBind(&authorization_data)
+		if err != nil {
+			I.Error = err
+		} else {
+			authorization_text = fmt.Sprintf("%s-%s", authorization_data.IDX, authorization_data.AuthToken)
+		}
+	}
 
 	// Default response headers
 	I.Context.Header("Content-Type", "application/json;charset=utf-8")
@@ -135,6 +155,11 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 		I.PrintUserAgent()
 	}
 
+	//
+	if I.Error == nil && options != nil && options.HasAuthorization {
+		_, I.Error = I.Authorization(authorization_text, &authorization_data)
+	}
+
 	if I.Error != nil {
 		return -1
 	}
@@ -180,6 +205,30 @@ func (I *Handler) PrintHeaders() {
 
 func (I *Handler) PrintUserAgent() {
 	utils.Logger.Log("UserAgent :", I.UserAgent)
+}
+
+func (I *Handler) Authorization(text string, data *TAuthorizationData) (int, error) {
+	if len(text) == 0 {
+		return -10, errors.New("Not Authorization Data")
+	}
+
+	var values []string = strings.Split(text, "-")
+	if len(values) == 0 {
+		return -11, errors.New("Authorization Data Invalidate")
+	}
+
+	if len(values) >= 2 {
+		data.IDX = strings.TrimSpace(values[0])
+		data.AuthToken = strings.TrimSpace(values[1])
+	} else {
+		data.IDX = strings.TrimSpace(values[0])
+	}
+
+	if !utils.CheckAccountIDX(data.IDX, 6, 12) {
+		return -11, errors.New("Authorization Data Invalidate")
+	}
+
+	return 0, nil
 }
 
 func InitHandler(ctx *gin.Context, options *HandlerOptions) (int, *Handler) {

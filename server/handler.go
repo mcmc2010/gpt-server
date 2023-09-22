@@ -71,7 +71,7 @@ func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
 }
 
 func HandleOpenAIModels(ctx *gin.Context) {
-	result, _ := InitHandler(ctx, nil)
+	result, _ := InitHandler(ctx, &HandlerOptions{HasAuthorization: true})
 	if result < 0 {
 		return
 	}
@@ -85,7 +85,7 @@ func HandleOpenAIModels(ctx *gin.Context) {
 }
 
 func HandleOpenAICompletions(ctx *gin.Context) {
-	result, handler := InitHandler(ctx, &HandlerOptions{PrintHeaders: true, DataType: "json"})
+	result, handler := InitHandler(ctx, &HandlerOptions{PrintHeaders: true, DataType: "json", HasAuthorization: true})
 	if result < 0 {
 		return
 	}

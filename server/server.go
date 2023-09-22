@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +26,7 @@ type Server struct {
 	router *gin.Engine
 }
 
-func middleware_cors() gin.HandlerFunc {
+func allow_domains(domains []string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		//
 		var origin = "*"
@@ -34,11 +35,26 @@ func middleware_cors() gin.HandlerFunc {
 			origin = values[0]
 		}
 
+		//
+		var allow bool = false
+		if len(domains) > 0 {
+			for _, v := range domains {
+				if strings.Contains(origin, v) {
+					allow = true
+					break
+				}
+			}
+		} else {
+			allow = true
+		}
+
 		//Response Headers
 		ctx.Header("Access-Control-Allow-Headers", "accept,authorization,content-type,content-encoding,cache-control,transfer-encoding")
 		ctx.Header("Access-Control-Expose-Headers", "authorization,content-type,content-encoding,cache-control,transfer-encoding")
 		ctx.Header("Access-Control-Allow-Credentials", "true")
-		ctx.Header("Access-Control-Allow-Origin", origin)
+		if allow {
+			ctx.Header("Access-Control-Allow-Origin", origin)
+		}
 		ctx.Header("Access-Control-Allow-Methods", "PUT,POST,GET,DELETE,OPTIONS")
 
 		//
@@ -103,8 +119,8 @@ func InitServer(config Config, mode string) *Server {
 		return text + "\n"
 	}))
 
-	if config.AllowCORS {
-		router.Use(middleware_cors())
+	if config.AllowDomains {
+		router.Use(allow_domains(config.AllowDomainsList))
 	}
 
 	//
