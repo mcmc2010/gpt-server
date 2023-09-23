@@ -134,12 +134,14 @@ func (I *Handler) InitData() error {
 
 		reader, err := gzip.NewReader(bytes.NewReader(buffer))
 		if err != nil {
+			utils.Logger.LogWarning("Request context length:", I.ContentLength, " GZIP Uncompress error:", err.Error())
 			return err
 		}
 
 		buffer = make([]byte, I.ContentLength+2)
 		length, err = reader.Read(buffer)
 		if err != nil {
+			utils.Logger.LogWarning("Request context length:", I.ContentLength, " GZIP Uncompress error:", err.Error())
 			return err
 		}
 
@@ -155,7 +157,7 @@ func (I *Handler) InitData() error {
 		I.Data = buffer
 
 		if I.Length < I.ContentLength {
-			utils.Logger.LogWarning("Request context length:", I.ContentLength, "Receive length:", I.Length)
+			utils.Logger.LogWarning("Request context length:", I.ContentLength, " Receive length:", I.Length)
 		}
 
 		//Parse data

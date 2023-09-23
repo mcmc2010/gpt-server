@@ -48,6 +48,14 @@ func allow_domains(domains []string) gin.HandlerFunc {
 			allow = true
 		}
 
+		if len(ctx.Writer.Header().Get("Access-Control-Allow-Origin")) > 0 {
+			ctx.Writer.Header().Del("Access-Control-Allow-Origin")
+			ctx.Writer.Header().Del("Access-Control-Allow-Headers")
+			ctx.Writer.Header().Del("Access-Control-Expose-Headers")
+			ctx.Writer.Header().Del("Access-Control-Allow-Credentials")
+			ctx.Writer.Header().Del("Access-Control-Allow-Methods")
+		}
+
 		//Response Headers
 		ctx.Header("Access-Control-Allow-Headers", "accept,authorization,content-type,content-encoding,cache-control,transfer-encoding")
 		ctx.Header("Access-Control-Expose-Headers", "authorization,content-type,content-encoding,cache-control,transfer-encoding")
