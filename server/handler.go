@@ -51,12 +51,11 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 
 	data = API_GPTCompletions2(body, func(index int, buffer *[]byte, length int, sender *API_HTTPData2) {
 
-		if ctx.IsAborted() || sender.ErrorCode != API_HTTP_RESULT_OK {
-			ctx_cancel()
+		if (sender.ErrorCode != API_HTTP_RESULT_OK) && (index > 0 || index == 0 && length > 0) {
 			return
 		}
 
-		if index < 0 {
+		if ctx.IsAborted() || index < 0 {
 			HandleResultFailed2(ctx, sender)
 			ctx_cancel()
 			return
@@ -78,14 +77,14 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 		}
 	})
 
-	if data.ErrorCode != API_HTTP_RESULT_OK {
-		HandleResultFailed2(ctx, data)
-		return
-	}
-
 	//ctx.String(http.StatusOK, "")
 	select {
 	case <-ctx_context.Done():
+		if data.ErrorCode != API_HTTP_RESULT_OK {
+			HandleResultFailed2(ctx, data)
+			return
+		}
 		return
 	}
+
 }

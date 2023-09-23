@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"errors"
@@ -104,6 +105,10 @@ func (I *Handler) InitData() error {
 	var encoding = I.GetHeader("Accept-Encoding", "")
 	if len(encoding) > 0 {
 		encoding = strings.ToLower(strings.TrimSpace(encoding))
+		var values = strings.Split(encoding, ",")
+		if len(values) > 0 {
+			encoding = strings.TrimSpace(values[0])
+		}
 	}
 
 	//
@@ -115,25 +120,30 @@ func (I *Handler) InitData() error {
 	}
 
 	I.ContentLength = int(I.Context.Request.ContentLength)
-	var bytes []byte = make([]byte, I.ContentLength+2)
-	length, err := I.Context.Request.Body.Read(bytes)
+	var buffer []byte = make([]byte, I.ContentLength+2)
+	length, err := I.Context.Request.Body.Read(buffer)
 	if err != nil && err != io.EOF {
 		return err
 	}
-	bytes = bytes[0:length]
+	buffer = buffer[0:length]
 
 	// Incomplete data received due to network issues.
 	if err == io.EOF && I.ContentLength > length {
 		return err
 	} else if I.ContentLength > length && err == nil && encoding == "gzip" {
-		reader, err := gzip.NewReader(I.Context.Request.Body)
+
+		reader, err := gzip.NewReader(bytes.NewReader(buffer))
 		if err != nil {
 			return err
 		}
-		length, err = reader.Read(bytes)
+
+		buffer = make([]byte, I.ContentLength+2)
+		length, err = reader.Read(buffer)
 		if err != nil {
 			return err
 		}
+
+		buffer = buffer[0:length]
 		reader.Close()
 	}
 
@@ -142,7 +152,7 @@ func (I *Handler) InitData() error {
 	I.DataType = "binary"
 
 	if I.Length > 0 {
-		I.Data = bytes
+		I.Data = buffer
 
 		if I.Length < I.ContentLength {
 			utils.Logger.LogWarning("Request context length:", I.ContentLength, "Receive length:", I.Length)
@@ -150,7 +160,7 @@ func (I *Handler) InitData() error {
 
 		//Parse data
 		var payload any
-		err = json.Unmarshal(bytes, &payload)
+		err = json.Unmarshal(buffer, &payload)
 		if err == nil {
 			I.Data = payload
 			I.DataType = "json"

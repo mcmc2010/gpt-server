@@ -7,6 +7,10 @@ import (
 )
 
 func HandleResultError(ctx *gin.Context, code int, message string) {
+	if ctx.IsAborted() {
+		return
+	}
+
 	result := gin.H{
 		"error_code":    code,
 		"error_message": message,
@@ -14,10 +18,15 @@ func HandleResultError(ctx *gin.Context, code int, message string) {
 	if !ctx.IsAborted() {
 		ctx.JSON(http.StatusBadRequest, result)
 	}
-	ctx.Abort()
+
+	//ctx.Abort()
 }
 
 func HandleResultFailed(ctx *gin.Context, code int, message string) {
+	if ctx.IsAborted() {
+		return
+	}
+
 	result := gin.H{
 		"error_code":    code,
 		"error_message": message,
@@ -25,11 +34,12 @@ func HandleResultFailed(ctx *gin.Context, code int, message string) {
 	if !ctx.IsAborted() {
 		ctx.JSON(http.StatusOK, result)
 	}
-	ctx.Abort()
+
+	//ctx.Abort()
 }
 
 func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
-	if data == nil {
+	if data == nil || ctx.IsAborted() {
 		return
 	}
 
@@ -43,18 +53,16 @@ func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
 		result["error_code"] = data.ErrorCode
 		result["error_message"] = data.ErrorMessage
 
-		if !ctx.IsAborted() {
-			ctx.JSON(http.StatusOK, result)
-		}
+		ctx.JSON(http.StatusOK, result)
 	} else {
-		if !ctx.IsAborted() {
-			ctx.JSON(http.StatusOK, gin.H{
-				"error_code":    data.ErrorCode,
-				"error_message": data.ErrorMessage,
-				"error":         nil,
-			})
-		}
+
+		ctx.JSON(http.StatusOK, gin.H{
+			"error_code":    data.ErrorCode,
+			"error_message": data.ErrorMessage,
+			"error":         nil,
+		})
+
 	}
 
-	ctx.Abort()
+	//ctx.Abort()
 }
