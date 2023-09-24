@@ -131,7 +131,7 @@ func (I *Handler) InitData() error {
 	if err == io.EOF && I.ContentLength > length {
 		return err
 	} else if I.ContentLength > length && err == nil && encoding == "gzip" {
-
+		utils.Logger.Log("Compress Buffer: ", utils.BinaryToHexString(buffer, 16))
 		reader, err := gzip.NewReader(bytes.NewReader(buffer))
 		if err != nil {
 			utils.Logger.LogWarning("Buffer length:", length, " GZIP Uncompress error:", err.Error())
