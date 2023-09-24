@@ -15,9 +15,8 @@ func HandleResultError(ctx *gin.Context, code int, message string) {
 		"error_code":    code,
 		"error_message": message,
 	}
-	if !ctx.IsAborted() {
-		ctx.JSON(http.StatusBadRequest, result)
-	}
+
+	ctx.JSON(http.StatusBadRequest, result)
 
 	//ctx.Abort()
 }
@@ -31,9 +30,8 @@ func HandleResultFailed(ctx *gin.Context, code int, message string) {
 		"error_code":    code,
 		"error_message": message,
 	}
-	if !ctx.IsAborted() {
-		ctx.JSON(http.StatusOK, result)
-	}
+
+	ctx.JSON(http.StatusOK, result)
 
 	//ctx.Abort()
 }

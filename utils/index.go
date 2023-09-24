@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"regexp"
@@ -29,6 +30,43 @@ func RandomRange(min int, max int) uint32 {
 
 	var r = uint32(rand.Int63n(int64((max - min) + 1)))
 	return r + uint32(min)
+}
+
+//
+func RandomChars(max int, level int) string {
+	var chars1 = "0123456789"
+	var chars2 = "abcdefghijklmnopqrstuvwxyz"
+	var chars3 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	var chars4 = "abcdefhkmnprstvwxy"
+	var chars5 = "ABCDEFHKMNPRSTVWXY"
+	var chars = chars1 + chars2 + chars3
+	// lowercase characters + number
+	if level == 0 {
+		chars = chars1 + chars2
+		// uppercase characters + number
+	} else if level == 1 {
+		chars = chars1 + chars3
+	} else if level == 2 {
+		chars = chars1 + chars4
+	} else if level == 3 {
+		chars = chars1 + chars5
+	} else if level == 9 {
+		chars = chars1 + chars4 + chars5
+	}
+	// default all characters
+	var count = len(chars)
+	var value = int(RandomRange(1000, 9999))
+	var text = ""
+	for n := 0; n < int(max); n++ {
+		i := value % count
+		var c = chars[i]
+		text = text + string(c)
+		value = value / count
+		if value == 0 {
+			value = int(RandomRange(1000, 9999))
+		}
+	}
+	return text
 }
 
 // TIMESTAMP
@@ -150,3 +188,28 @@ func GenerateIDX(level int) int64 {
 	}
 	return value
 }
+
+//
+func GenerateCode(level int32) string {
+	// Random 6 number
+	var value = RandomRange(100000, 999999)
+	if level == 0 {
+		return fmt.Sprintf("%d", value)
+		// Random 8 number
+	} else if level == 1 {
+		value = RandomRange(10000000, 99999999)
+		return fmt.Sprintf("%d", value)
+		// Random 6 characters lowercase, uppercase and number
+	} else if level == 2 {
+		return RandomChars(6, 9)
+		// Random 8 characters uppercase and number
+	} else if level == 3 {
+		return RandomChars(8, 3)
+		// Random 8 characters lowercase and number
+	} else if level == 4 {
+		return RandomChars(8, 2)
+	}
+
+	return ""
+}
+
