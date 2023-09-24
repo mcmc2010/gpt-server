@@ -121,23 +121,28 @@ func (I *Handler) InitData() error {
 
 	I.ContentLength = int(I.Context.Request.ContentLength)
 
-	var err error = nil
+	//var err error = nil
 	var length = 0
-	var buffer []byte = make([]byte, 0)
-	for length < I.ContentLength {
-		var temp []byte = make([]byte, 1024)
-		count, err := I.Context.Request.Body.Read(temp)
-		if err != nil && err != io.EOF {
-			return err
-		}
-		if(count == 0) {
-			break;
-		}
-
-		length += count
-		buffer = append(buffer, temp[0:count]...)
+	//var buffer []byte = make([]byte, 0)
+	buffer, err := io.ReadAll(I.Context.Request.Body)
+	if err != nil && err != io.EOF {
+		return err
 	}
-	buffer = buffer[0:length]
+	length = len(buffer)
+	// for length < I.ContentLength {
+	// 	var temp []byte = make([]byte, 1024)
+	// 	count, err := I.Context.Request.Body.Read(temp)
+	// 	if err != nil && err != io.EOF {
+	// 		return err
+	// 	}
+	// 	if(count == 0) {
+	// 		break;
+	// 	}
+
+	// 	length += count
+	// 	buffer = append(buffer, temp[0:count]...)
+	// }
+	//buffer = buffer[0:length]
 
 	// Incomplete data received due to network issues.
 	if err == io.EOF && I.ContentLength > length {
