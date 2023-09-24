@@ -72,6 +72,13 @@ func InitServer(config Config, mode string) *Server {
 
 	//
 	router := gin.Default()
+
+	if config.MemoryMax == 0 {
+		config.MemoryMax = 32
+	}
+	router.MaxMultipartMemory = int64(config.MemoryMax << 20)
+
+	//
 	server := Server{
 		router: router,
 		//

@@ -355,7 +355,7 @@ func API_HTTPReadable2(response *httpclient.Response, data *API_HTTPData2) int {
 
 func API_HTTPReadableStreamChunkedData2(reader *io.Reader, chunks *[]byte) int {
 	var result int = 1
-	var bytes []byte = make([]byte, 256) //make([]byte, 4096)
+	var bytes []byte = make([]byte, 1024) //make([]byte, 4096)
 	count, err := (*reader).Read(bytes)
 	if err != nil {
 		if err == io.EOF {

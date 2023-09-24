@@ -2,6 +2,8 @@ package server
 
 type Config struct {
 
+	//
+	MemoryMax		int		`yaml:"memory_max" json:"memory_max" validate:"-"` //32 << 20
 	// Server Settings:
 	IPv6             bool   `yaml:"ipv6" json:"ipv6" validate:"-"`
 	Address          string `yaml:"address" json:"address" validate:"-"`
