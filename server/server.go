@@ -203,7 +203,8 @@ func register_handlers(router *gin.Engine) bool {
 
 	// Server
 	router.Any("/server/ping", HandlePing)
-	router.GET("server/login", HandleUserLogin)
+	router.Any("/server/auth", HandleUserAuth)
+	router.Any("/server/login", HandleUserLogin)
 
 	// OpenAI API
 	//router.Any("/api/v1/models", HandleOpenAIModels)

@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ type HandlerOptions struct {
 type Handler struct {
 
 	//
+	Method string
 	Context       *gin.Context
 	Timestamp     int64
 	RemoteAddress string
@@ -45,13 +47,18 @@ type Handler struct {
 
 	//
 	Error error
+
+	//
+	AuthorizationData *TAuthorizationData
 }
 
 // API: Authorization
 type TAuthorizationData struct {
-	IDX       string `form:"idx"`
-	AuthCode  string `form:"auth_code"`
-	AuthToken string `form:"auth_token"`
+	IDX       uint32 `form:"idx" json:"idx"`
+	AuthCode  string `form:"auth_code" json:"auth_code"`
+	AuthToken string `form:"auth_token" json:"auth_token"`
+	AuthTime string
+	IPAddress string
 }
 
 func (I *Handler) TimeStamp() uint32 {
@@ -190,7 +197,9 @@ func (I *Handler) InitData() error {
 
 func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	I.Context = ctx
+	I.Method = I.Context.Request.Method
 	I.Timestamp = int64(I.TimeStamp64())
+	I.AuthorizationData = nil
 
 	//
 	I.RemoteAddress = ctx.RemoteIP()
@@ -235,6 +244,13 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	//
 	if I.Error == nil && options != nil && options.HasAuthorization {
 		_, I.Error = I.Authorization(authorization_text, &authorization_data)
+		if(I.Error == nil) {
+			I.AuthorizationData = &authorization_data;
+
+			//
+			I.AuthorizationData.AuthTime = utils.DateFormat(time.Now(), 3)
+			I.AuthorizationData.IPAddress= I.RemoteAddress
+		}
 	}
 
 	if I.Error != nil {
@@ -286,7 +302,7 @@ func (I *Handler) PrintUserAgent() {
 
 func (I *Handler) Authorization(text string, data *TAuthorizationData) (int, error) {
 	if len(text) == 0 {
-		return -10, errors.New("Not Authorization Data")
+		return -10, errors.New("not authorization data")
 	}
 
 	var values []string = strings.Split(text, "-")
@@ -294,15 +310,14 @@ func (I *Handler) Authorization(text string, data *TAuthorizationData) (int, err
 		return -11, errors.New("Authorization Data Invalidate")
 	}
 
-	if len(values) >= 2 {
-		data.IDX = strings.TrimSpace(values[0])
-		data.AuthToken = strings.TrimSpace(values[1])
-	} else {
-		data.IDX = strings.TrimSpace(values[0])
+	idx, err := strconv.ParseUint(strings.TrimSpace(values[0]), 10, 32)
+	if err != nil || idx >= 1000000000 {
+		return -11, errors.New("Authorization Data Invalidate")
 	}
 
-	if !utils.CheckAccountIDX(data.IDX, 6, 12) {
-		return -11, errors.New("Authorization Data Invalidate")
+	data.IDX = uint32(idx)
+	if len(values) >= 2 {
+		data.AuthToken = strings.TrimSpace(values[1])
 	}
 
 	return 0, nil
