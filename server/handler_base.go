@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/exp/maps"
+	database_redis "mcmcx.com/gpt-server/database/redis"
 	"mcmcx.com/gpt-server/utils"
 )
 
@@ -33,7 +34,7 @@ type HandlerOptions struct {
 type Handler struct {
 
 	//
-	Method string
+	Method        string
 	Context       *gin.Context
 	Timestamp     int64
 	RemoteAddress string
@@ -54,11 +55,26 @@ type Handler struct {
 
 // API: Authorization
 type TAuthorizationData struct {
-	IDX       uint32 `form:"idx" json:"idx"`
-	AuthCode  string `form:"auth_code" json:"auth_code"`
-	AuthToken string `form:"auth_token" json:"auth_token"`
-	AuthTime string
+	IDX       utils.TIDX `form:"idx" json:"idx"`
+	AuthCode  string     `form:"auth_code" json:"auth_code"`
+	AuthToken string     `form:"auth_token" json:"auth_token"`
+	//
+	AuthTime  string
 	IPAddress string
+	DeviceUID string
+}
+
+type DBAuthorizationData struct {
+	IDX   utils.TIDX `json:"idx"`
+	Code  string     `json:"auth_code"`
+	Token string     `json:"auth_token"`
+	//
+	CreateTime string `json:"create_time"`
+	AuthTime   string `json:"auth_time"`
+	AuthCount  int    `json:"auth_count"`
+	// Device ID
+	IPAddress string `json:"ip_address"`
+	DeviceUID string `json:"device_uid"`
 }
 
 func (I *Handler) TimeStamp() uint32 {
@@ -219,7 +235,7 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 		if err != nil {
 			I.Error = err
 		} else {
-			authorization_text = fmt.Sprintf("%s-%s", authorization_data.IDX, authorization_data.AuthToken)
+			authorization_text = fmt.Sprintf("%d-%s", authorization_data.IDX, authorization_data.AuthToken)
 		}
 	}
 
@@ -244,12 +260,8 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	//
 	if I.Error == nil && options != nil && options.HasAuthorization {
 		_, I.Error = I.Authorization(authorization_text, &authorization_data)
-		if(I.Error == nil) {
-			I.AuthorizationData = &authorization_data;
-
-			//
-			I.AuthorizationData.AuthTime = utils.DateFormat(time.Now(), 3)
-			I.AuthorizationData.IPAddress= I.RemoteAddress
+		if I.Error == nil {
+			I.AuthorizationData = &authorization_data
 		}
 	}
 
@@ -307,20 +319,66 @@ func (I *Handler) Authorization(text string, data *TAuthorizationData) (int, err
 
 	var values []string = strings.Split(text, "-")
 	if len(values) == 0 {
-		return -11, errors.New("Authorization Data Invalidate")
+		return -11, errors.New("authorization data invalidate")
 	}
 
-	idx, err := strconv.ParseUint(strings.TrimSpace(values[0]), 10, 32)
-	if err != nil || idx >= 1000000000 {
-		return -11, errors.New("Authorization Data Invalidate")
+	idx, err := strconv.ParseInt(strings.TrimSpace(values[0]), 10, 32)
+	if err != nil {
+		return -11, errors.New("authorization data invalidate")
 	}
 
-	data.IDX = uint32(idx)
+	data.IDX = utils.TIDX(idx)
 	if len(values) >= 2 {
 		data.AuthToken = strings.TrimSpace(values[1])
 	}
+	if !utils.CheckAccountIDX(data.IDX, 6, 12) || !utils.CheckToken(data.AuthToken) {
+		return -11, errors.New("authorization data invalidate")
+	}
 
+	//
+	data.AuthTime = utils.DateFormat(time.Now(), 3)
+	data.IPAddress = I.RemoteAddress
+	result, db_data := db_auth_data_verfiy(data)
+	if result < 0 {
+		return -12, errors.New("authorization data expiration or expiration")
+	}
+
+	//
+	data.DeviceUID = db_data.DeviceUID
+
+	//
+	if result >= 1 {
+		data.AuthCode = db_data.Code
+	}
+
+	//
 	return 0, nil
+}
+
+func db_auth_data_verfiy(data *TAuthorizationData) (int, *DBAuthorizationData) {
+	var db_id = fmt.Sprintf("auth_user_%d_%s", data.IDX, data.AuthToken)
+	var db_auth_data DBAuthorizationData
+	if !database_redis.GetJson(db_id, &db_auth_data, false) || db_auth_data.IDX != data.IDX {
+		return -1, nil
+	}
+
+	var result = 0
+	if len(data.AuthToken) > 0 && db_auth_data.Token == data.AuthToken {
+		result = 1
+	}
+	if len(data.AuthCode) > 0 && db_auth_data.Code == data.AuthCode {
+		result = 2
+	}
+
+	//IPAddress, Device
+	//None
+
+	db_auth_data.AuthCount++
+	db_auth_data.AuthTime = utils.DateFormat(time.Now(), 3)
+	if !database_redis.PushJson[DBAuthorizationData](db_id, &db_auth_data, database_redis.KEEP_TIME, false) {
+		return -2, nil
+	}
+	return result, &db_auth_data
 }
 
 func InitHandler(ctx *gin.Context, options *HandlerOptions) (int, *Handler) {

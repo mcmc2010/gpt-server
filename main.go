@@ -30,9 +30,9 @@ func main() {
 	}
 
 	//Redis
-	//if !server.RedisInitialize("config.yaml") {
-	//	//return
-	//}
+	if !server.RedisInitialize("config.yaml") {
+		return
+	}
 
 	//ChatGPT
 	server.API_GPTInit(config)
@@ -63,5 +63,8 @@ func main() {
 
 	//
 	println("Exiting ...")
+
+	//
+	server.RedisRelease()
 	return
 }

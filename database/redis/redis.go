@@ -100,6 +100,9 @@ func keep_time(value float32) time.Duration {
 		keep = time.Duration(float64(value) * float64(time.Second))
 	} else if value == 0.0 {
 		keep = 0
+		//Max date time : 9999 days
+	} else if value == -1.0 {
+		keep = time.Duration(9999 * 24 * 60 * 60 * time.Second)
 	}
 	return keep
 }
@@ -209,12 +212,16 @@ func GetFields(key string) (map[string]string, bool) {
 	return val, true
 }
 
-func PushJson[T any](key string, values *T, keep float32) bool {
+func PushJson[T any](key string, values *T, keep float32, encoding bool) bool {
 	data, err := json.Marshal(values)
 	if err != nil {
 		return false
 	}
-	var text = base64.StdEncoding.EncodeToString(data)
+
+	var text = string(data)
+	if encoding {
+		text = base64.StdEncoding.EncodeToString(data)
+	}
 	var ctx = context.Background()
 	err = _instance.SetEx(ctx, key, text, keep_time(keep)).Err()
 	if err != nil {
@@ -223,16 +230,19 @@ func PushJson[T any](key string, values *T, keep float32) bool {
 	return true
 }
 
-func GetJson[T any](key string, value *T) bool {
+func GetJson[T any](key string, value *T, encoding bool) bool {
 	var ctx = context.Background()
 	val, err := _instance.GetEx(ctx, key, 0).Result()
 	if err != nil {
 		return false
 	}
 
-	data, err := base64.StdEncoding.DecodeString(val)
-	if err != nil {
-		return false
+	data := []byte(val)
+	if encoding {
+		data, err = base64.StdEncoding.DecodeString(val)
+		if err != nil {
+			return false
+		}
 	}
 
 	err = json.Unmarshal(data, value)
@@ -242,7 +252,7 @@ func GetJson[T any](key string, value *T) bool {
 	return true
 }
 
-func PushJsonData(key string, values []byte, keep float32) bool {
+func PushData(key string, values []byte, keep float32) bool {
 	var text = base64.StdEncoding.EncodeToString(values)
 	var ctx = context.Background()
 	err := _instance.SetEx(ctx, key, text, keep_time(keep)).Err()
@@ -252,7 +262,7 @@ func PushJsonData(key string, values []byte, keep float32) bool {
 	return true
 }
 
-func GetJsonData(key string) ([]byte, bool) {
+func GetData(key string) ([]byte, bool) {
 	var ctx = context.Background()
 	val, err := _instance.GetEx(ctx, key, 0).Result()
 	if err != nil {

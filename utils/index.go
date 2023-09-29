@@ -5,11 +5,13 @@ import (
 	"math"
 	"math/rand"
 	"regexp"
+	"strings"
 	"time"
 )
 
 // TIME
 const (
+	//
 	TIME_SECOND   = 1.0
 	TIME_MINUTE   = 1.0 * 60.0
 	TIME_HOUR     = 1.0 * 60.0 * 60.0
@@ -19,7 +21,15 @@ const (
 	TIME_KEEP     = -1
 	TIME_KEEPN    = TIME_DAY * 365 * 100
 	TIME_EXPIREDN = -1.0
+
+	//
+	IDX_MAX       = 12
+	IDX_MIN       = 5
+	IDX_MAX_VALUE = 999999999999
+	IDX_MIN_VALUE = 10000
 )
+
+type TIDX int64
 
 func RandomRange(min int, max int) uint32 {
 	if min > max {
@@ -32,7 +42,6 @@ func RandomRange(min int, max int) uint32 {
 	return r + uint32(min)
 }
 
-//
 func RandomChars(max int, level int) string {
 	var chars1 = "0123456789"
 	var chars2 = "abcdefghijklmnopqrstuvwxyz"
@@ -134,20 +143,28 @@ func DateFormat(date time.Time, level int) string {
 	return date.Format("2006-01-02 15:04:05.000 -0700 MST Mon")
 }
 
-func CheckAccountIDX(idx string, min int, max int) bool {
-	regex := regexp.MustCompile("^[0-9]+$")
-	if !regex.MatchString(idx) {
-		return false
+func CheckAccountIDX(idx any, min int, max int) bool {
+
+	v, ok := idx.(string)
+	if ok {
+		regex := regexp.MustCompile(fmt.Sprintf("^[0-9]+{%d, %d}$", min, max))
+		if !regex.MatchString(v) {
+			return false
+		}
+		return true
 	}
 
-	l := len(idx)
-	return l >= min && l <= max
+	n, ok := idx.(TIDX)
+	if ok {
+		return n >= IDX_MIN_VALUE && n <= IDX_MAX_VALUE
+	}
+	return false
 }
 
 // default : 8 number
 // level 1: 10 number
 // level 2: 12 number
-func GenerateIDX(level int) int64 {
+func GenerateIDX(level int) TIDX {
 	var date = time.Now()
 	year := date.Year()%1000 + 1000
 	a := int(date.Month())*10 + date.Day()
@@ -186,10 +203,9 @@ func GenerateIDX(level int) int64 {
 	if level == 4 {
 		value = 100*10000*10000 + value
 	}
-	return value
+	return TIDX(value)
 }
 
-//
 func GenerateCode(level int32) string {
 	// Random 6 number
 	var value = RandomRange(100000, 999999)
@@ -213,3 +229,14 @@ func GenerateCode(level int32) string {
 	return ""
 }
 
+func CheckToken(token string) bool {
+
+	//
+	token = strings.TrimSpace(token)
+	length := len(token)
+	regex := regexp.MustCompile("^[0-9|a-z|A-Z]+$")
+	if !regex.MatchString(token) || (length != 16 && length != 32 && length != 64) {
+		return false
+	}
+	return true
+}
