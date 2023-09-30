@@ -74,6 +74,7 @@ type TUserAuthResultData struct {
 
 var ErrorLoginFailed = errors.New("checking login information failed")
 var ErrorLoginAccountInvalidate = errors.New("login account invalidate")
+var ErrorLoginError = errors.New("login internal error")
 
 func HandleUserLogin(ctx *gin.Context) {
 	result, handler := InitHandler(ctx, &HandlerOptions{HasAuthorization: false})
@@ -119,7 +120,10 @@ func HandleUserLogin(ctx *gin.Context) {
 	result_data.Token = utils.SHA256(token_text)
 
 	//
-	db_login_data_add(&result_data)
+	if db_login_data_add(&result_data) == nil {
+		HandleResultFailed(ctx, -102, ErrorLoginError.Error())
+		return
+	}
 
 	utils.Logger.LogWarning("[Login] Username:", login_data.Username,
 		" Result (", result_data.Code, ", ", result_data.Token, ")",
@@ -210,8 +214,8 @@ func HandleUserAuth(ctx *gin.Context) {
 	}
 
 	utils.Logger.LogWarning("[Auth] IDX:", auth_data.IDX,
-	" Result (OK)",
-	" IPAddress (", handler.AuthorizationData.IPAddress, ",", handler.AuthorizationData.DeviceUID, ")")
+		" Result (OK)",
+		" IPAddress (", handler.AuthorizationData.IPAddress, ",", handler.AuthorizationData.DeviceUID, ")")
 
 	var result_data TUserAuthResultData = TUserAuthResultData{
 		IDX:       handler.AuthorizationData.IDX,

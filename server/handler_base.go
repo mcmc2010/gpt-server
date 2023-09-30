@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -222,6 +223,12 @@ func (I *Handler) Init(ctx *gin.Context, options *HandlerOptions) int {
 	if len(ctx.ClientIP()) > 0 {
 		I.RemoteAddress = ctx.ClientIP()
 	}
+	ip := net.ParseIP(I.RemoteAddress)
+	ip = ip.To4()
+	if ip != nil {
+		I.RemoteAddress = ip.String()
+	}
+
 	//
 	I.UserAgent = ctx.Request.UserAgent()
 	//
