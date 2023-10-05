@@ -41,7 +41,7 @@ func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
 		return
 	}
 
-	if data.ErrorCode == http.StatusUnauthorized {
+	if data.ErrorCode == http.StatusUnauthorized || data.ErrorCode == http.StatusBadRequest {
 		result := data.Data().(map[string]any)
 		if result == nil {
 			result = map[string]any{
