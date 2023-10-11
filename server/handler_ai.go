@@ -2,9 +2,73 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
+
+// {
+// 	"created":1651172509,
+// 	"id":"text-search-babbage-doc-001",
+// 	"object":"model",
+// 	"owned_by":"openai-dev",
+// 	"parent":null,
+// 	"permission":
+// 	[
+// 		{"allow_create_engine":false,"allow_fine_tuning":false,"allow_logprobs":true,"allow_sampling":true,"allow_search_indices":true,"allow_view":true,"created":1695933794,"group":null,"id":"modelperm-s9n5HnzbtVn7kNc5TIZWiCFS","is_blocking":false,"object":"model_permission","organization":"*"}
+// 	],
+// 	"root":"text-search-babbage-doc-001"
+// }
+type OPENAI_MODEL_ITEM struct 
+{
+	Created int64 `json:"created"`
+	ID string `json:"id"`
+	Object string `json:"object"`
+	Owned string `json:"owned_by"`
+	//Parent string `json:"parent"`
+	Permission []any `json:"permission"`
+	Root string `json:"root"`
+}
+
+type OPEMAI_MODELS struct
+{
+	Object string `json:"object"`;
+	Data []OPENAI_MODEL_ITEM `json:"data"`;
+} 
+
+var OPENAI_Models *OPEMAI_MODELS = nil
+
+func (I *OPENAI_MODEL_ITEM) Name() string {
+	return strings.ReplaceAll(I.ID, "-", " ")
+}
+
+//
+func OpenAI_Init(models any) bool {
+	if(models == nil) {
+		return false
+	}
+	
+	data, ok := models.(map[string]any);
+	if(!ok) {
+		return false
+	}
+
+	//
+	bytes, err := json.Marshal(data);
+	if(err != nil) {
+		return false
+	}
+
+	var m OPEMAI_MODELS
+	err = json.Unmarshal(bytes, &m)
+	if(err != nil) {
+		return false
+	}
+	OPENAI_Models = &m
+
+	return true
+}
 
 func HandleOpenAIModels(ctx *gin.Context) {
 	result, _ := InitHandler(ctx, &HandlerOptions{HasAuthorization: false})
@@ -12,12 +76,16 @@ func HandleOpenAIModels(ctx *gin.Context) {
 		return
 	}
 
-	data := API_GPTModels2()
-	if data.ErrorCode != API_HTTP_RESULT_OK {
-		HandleResultFailed2(ctx, data)
+	if OPENAI_Models == nil {
+		HandleResultFailed(ctx, -1, "Not found openai models")
 		return
 	}
-	ctx.JSON(200, data.Data())
+
+	data := gin.H{
+		"object":"list",
+		"data": OPENAI_Models.Data,
+	}
+	ctx.JSON(200, data)
 }
 
 

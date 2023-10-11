@@ -35,12 +35,17 @@ func main() {
 	}
 
 	//ChatGPT
-	server.API_GPTInit(config)
-	//var models = server.API_GPTModels(config)
-	//if len(models) == 0 {
-	//	logger.LogError("GPT Loading models failure.")
-	//	return
-	//}
+	if(!server.API_GPTInit(config) ) {
+		return
+	}
+	
+	//Get ai models
+	var data = server.API_GPTModels2()
+	if(data.ErrorCode != server.API_HTTP_RESULT_OK || !server.OpenAI_Init(data.Data()) ){
+		logger.LogError("GPT Loading models failure.")
+		return
+	}
+	
 
 	//
 	logger.Log("GPT service loading ...")

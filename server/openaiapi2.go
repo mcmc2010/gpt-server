@@ -494,11 +494,12 @@ func API_HTTPReadableStream2(response *httpclient.Response, data *API_HTTPData2)
 
 
 //
-func API_GPTInit(config Config) {
+func API_GPTInit(config Config) bool {
 	http_base_url = config.APIUrl
 
 	http_additional_headers["Openai-Organization"] = config.APIOrganization
 	http_additional_headers["Authorization"] = fmt.Sprintf("Bearer %s", config.APIKey)
+	return true
 }
 
 
