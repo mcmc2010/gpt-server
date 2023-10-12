@@ -6,36 +6,35 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"mcmcx.com/gpt-server/httpx"
 )
 
-// {
-// 	"created":1651172509,
-// 	"id":"text-search-babbage-doc-001",
-// 	"object":"model",
-// 	"owned_by":"openai-dev",
-// 	"parent":null,
-// 	"permission":
-// 	[
-// 		{"allow_create_engine":false,"allow_fine_tuning":false,"allow_logprobs":true,"allow_sampling":true,"allow_search_indices":true,"allow_view":true,"created":1695933794,"group":null,"id":"modelperm-s9n5HnzbtVn7kNc5TIZWiCFS","is_blocking":false,"object":"model_permission","organization":"*"}
-// 	],
-// 	"root":"text-search-babbage-doc-001"
-// }
-type OPENAI_MODEL_ITEM struct 
-{
-	Created int64 `json:"created"`
-	ID string `json:"id"`
-	Object string `json:"object"`
-	Owned string `json:"owned_by"`
+//	{
+//		"created":1651172509,
+//		"id":"text-search-babbage-doc-001",
+//		"object":"model",
+//		"owned_by":"openai-dev",
+//		"parent":null,
+//		"permission":
+//		[
+//			{"allow_create_engine":false,"allow_fine_tuning":false,"allow_logprobs":true,"allow_sampling":true,"allow_search_indices":true,"allow_view":true,"created":1695933794,"group":null,"id":"modelperm-s9n5HnzbtVn7kNc5TIZWiCFS","is_blocking":false,"object":"model_permission","organization":"*"}
+//		],
+//		"root":"text-search-babbage-doc-001"
+//	}
+type OPENAI_MODEL_ITEM struct {
+	Created int64  `json:"created"`
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Owned   string `json:"owned_by"`
 	//Parent string `json:"parent"`
-	Permission []any `json:"permission"`
-	Root string `json:"root"`
+	Permission []any  `json:"permission"`
+	Root       string `json:"root"`
 }
 
-type OPEMAI_MODELS struct
-{
-	Object string `json:"object"`;
-	Data []OPENAI_MODEL_ITEM `json:"data"`;
-} 
+type OPEMAI_MODELS struct {
+	Object string              `json:"object"`
+	Data   []OPENAI_MODEL_ITEM `json:"data"`
+}
 
 var OPENAI_Models *OPEMAI_MODELS = nil
 
@@ -43,26 +42,25 @@ func (I *OPENAI_MODEL_ITEM) Name() string {
 	return strings.ReplaceAll(I.ID, "-", " ")
 }
 
-//
 func OpenAI_Init(models any) bool {
-	if(models == nil) {
+	if models == nil {
 		return false
 	}
-	
-	data, ok := models.(map[string]any);
-	if(!ok) {
+
+	data, ok := models.(map[string]any)
+	if !ok {
 		return false
 	}
 
 	//
-	bytes, err := json.Marshal(data);
-	if(err != nil) {
+	bytes, err := json.Marshal(data)
+	if err != nil {
 		return false
 	}
 
 	var m OPEMAI_MODELS
 	err = json.Unmarshal(bytes, &m)
-	if(err != nil) {
+	if err != nil {
 		return false
 	}
 	OPENAI_Models = &m
@@ -82,12 +80,11 @@ func HandleOpenAIModels(ctx *gin.Context) {
 	}
 
 	data := gin.H{
-		"object":"list",
-		"data": OPENAI_Models.Data,
+		"object": "list",
+		"data":   OPENAI_Models.Data,
 	}
 	ctx.JSON(200, data)
 }
-
 
 // {
 // 	"model": "gpt-3.5-turbo",
@@ -112,7 +109,7 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 	}
 
 	body, ok := handler.Data.(map[string]any)
-	if(!ok) {
+	if !ok {
 		HandleResultFailed(ctx, -1, "Request payload data error.")
 		return
 	}
@@ -133,11 +130,11 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 	//context := ctx.Request.Context()
 	ctx_context, ctx_cancel := context.WithCancel(ctx.Request.Context())
 
-	var data *API_HTTPData2 = nil
+	var data *httpx.HTTPData2 = nil
 
-	data = API_GPTCompletions2(body, func(index int, buffer *[]byte, length int, sender *API_HTTPData2) {
+	data = API_GPTCompletions2(body, func(index int, buffer *[]byte, length int, sender *httpx.HTTPData2) {
 
-		if (sender.ErrorCode != API_HTTP_RESULT_OK) && (index > 0 || index == 0 && length > 0) {
+		if (sender.ErrorCode != httpx.HTTP_RESULT_OK) && (index > 0 || index == 0 && length > 0) {
 			return
 		}
 
@@ -166,7 +163,7 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 	//ctx.String(http.StatusOK, "")
 	select {
 	case <-ctx_context.Done():
-		if data.ErrorCode != API_HTTP_RESULT_OK {
+		if data.ErrorCode != httpx.HTTP_RESULT_OK {
 			HandleResultFailed2(ctx, data)
 			return
 		}

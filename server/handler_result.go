@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"mcmcx.com/gpt-server/httpx"
 )
 
 func HandleResultError(ctx *gin.Context, code int, message string) {
@@ -36,7 +37,7 @@ func HandleResultFailed(ctx *gin.Context, code int, message string) {
 	//ctx.Abort()
 }
 
-func HandleResultFailed2(ctx *gin.Context, data *API_HTTPData2) {
+func HandleResultFailed2(ctx *gin.Context, data *httpx.HTTPData2) {
 	if data == nil || ctx.IsAborted() {
 		return
 	}

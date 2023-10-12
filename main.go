@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
+	"mcmcx.com/gpt-server/httpx"
 	"mcmcx.com/gpt-server/server"
 	"mcmcx.com/gpt-server/utils"
 )
@@ -29,23 +30,26 @@ func main() {
 		return
 	}
 
+	//
+	server.API_IPInit()
+	server.API_IPGet("192.168.1.1")
+
 	//Redis
 	if !server.RedisInitialize("config.yaml") {
 		return
 	}
 
 	//ChatGPT
-	if(!server.API_GPTInit(config) ) {
+	if !server.API_GPTInit(config) {
 		return
 	}
-	
+
 	//Get ai models
 	var data = server.API_GPTModels2()
-	if(data.ErrorCode != server.API_HTTP_RESULT_OK || !server.OpenAI_Init(data.Data()) ){
+	if data.ErrorCode != httpx.HTTP_RESULT_OK || !server.OpenAI_Init(data.Data()) {
 		logger.LogError("GPT Loading models failure.")
 		return
 	}
-	
 
 	//
 	logger.Log("GPT service loading ...")
