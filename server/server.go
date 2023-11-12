@@ -65,6 +65,18 @@ func allow_domains(domains []string) gin.HandlerFunc {
 	}
 }
 
+func ExceptionHandler() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		defer func() {
+            if err := recover(); err != nil {
+                utils.Logger.LogError("Recovered: ", err)
+            }
+        }()
+		ctx.Next()
+		
+	}
+}
+
 func InitServer(config Config, mode string) *Server {
 
 	//
@@ -129,6 +141,9 @@ func InitServer(config Config, mode string) *Server {
 	if config.AllowDomains {
 		router.Use(allow_domains(config.AllowDomainsList))
 	}
+
+	//
+	router.Use(ExceptionHandler());
 
 	//
 	api := router.Group("/api")

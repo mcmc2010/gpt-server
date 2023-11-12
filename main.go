@@ -32,7 +32,8 @@ func main() {
 
 	//
 	server.API_IPInit()
-	server.API_IPGet("192.168.1.1")
+	server.API_IPGet("92.168.1.1")
+	server.IPDB2Get("92.168.1.1")
 
 	//Redis
 	if !server.RedisInitialize("config.yaml") {
@@ -75,5 +76,6 @@ func main() {
 
 	//
 	server.RedisRelease()
+	server.LDBReleaseAll()
 	return
 }

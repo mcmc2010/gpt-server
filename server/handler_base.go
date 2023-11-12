@@ -60,9 +60,10 @@ type TAuthorizationData struct {
 	AuthCode  string     `form:"auth_code" json:"auth_code"`
 	AuthToken string     `form:"auth_token" json:"auth_token"`
 	//
-	AuthTime  string
-	IPAddress string
-	DeviceUID string
+	AuthTime    string
+	IPAddress   string
+	IPLocalized string
+	DeviceUID   string
 }
 
 type DBAuthorizationData struct {
@@ -74,8 +75,9 @@ type DBAuthorizationData struct {
 	AuthTime   string `json:"auth_time"`
 	AuthCount  int    `json:"auth_count"`
 	// Device ID
-	IPAddress string `json:"ip_address"`
-	DeviceUID string `json:"device_uid"`
+	IPAddress   string `json:"ip_address"`
+	IPLocalized string `json:"ip_localized"`
+	DeviceUID   string `json:"device_uid"`
 }
 
 func (I *Handler) TimeStamp() uint32 {
@@ -345,6 +347,7 @@ func (I *Handler) Authorization(text string, data *TAuthorizationData) (int, err
 	//
 	data.AuthTime = utils.DateFormat(time.Now(), 3)
 	data.IPAddress = I.RemoteAddress
+	data.IPLocalized = IPLocalized(I.RemoteAddress).Localize()
 	result, db_data := db_auth_data_verfiy(data)
 	if result < 0 {
 		return -12, errors.New("authorization data expiration or expiration")

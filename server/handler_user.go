@@ -31,6 +31,7 @@ type TLoginResultData struct {
 	CreateTime string `json:"create_time"`
 	// Device ID
 	IPAddress string `json:"ip_address"`
+	IPLocalized string `json:"ip_localized"`
 	DeviceUID string `json:"device_uid"`
 }
 
@@ -43,6 +44,7 @@ type DBLoginData struct {
 	CreateTime string `json:"create_time"`
 	// Device ID
 	IPAddress string `json:"ip_address"`
+	IPLocalized string `json:"ip_localized"`
 	DeviceUID string `json:"device_uid"`
 }
 
@@ -69,6 +71,7 @@ type TUserAuthResultData struct {
 	Timestamp int64 `json:"timestamp"`
 	// Device ID
 	IPAddress string `json:"ip_address"`
+	IPLocalized string `json:"ip_localized"`
 	//DeviceUID string `json:"device_uid"`
 }
 
@@ -111,7 +114,7 @@ func HandleUserLogin(ctx *gin.Context) {
 
 	result_data.DeviceUID = login_data.DeviceUID
 	result_data.IPAddress = handler.RemoteAddress
-
+	result_data.IPLocalized = IPLocalized(handler.RemoteAddress).Localize()
 	//
 	result_data.Code = utils.GenerateCode(3)
 
@@ -158,6 +161,7 @@ func db_login_data_add(data *TLoginResultData) *DBLoginDataSet {
 	val.Code = data.Code
 	val.Token = data.Token
 	val.IPAddress = data.IPAddress
+	val.IPLocalized = data.IPLocalized
 
 	db_login_set.List[key] = val
 
@@ -174,6 +178,7 @@ func db_login_data_add(data *TLoginResultData) *DBLoginDataSet {
 		CreateTime: val.CreateTime,
 		DeviceUID:  val.DeviceUID,
 		IPAddress:  val.IPAddress,
+		IPLocalized: val.IPAddress,
 	}
 	auth_data.AuthTime = utils.DateFormat(time.Now(), 3)
 	auth_data.AuthCount = 1
@@ -224,6 +229,7 @@ func HandleUserAuth(ctx *gin.Context) {
 		Timestamp: int64(utils.GetTimeStamp64()),
 	}
 	result_data.IPAddress = handler.AuthorizationData.IPAddress
+	//result_data.IPLocalized = Handler.AuthorizationData.IPLocalized
 
 	ctx.JSON(http.StatusOK, result_data)
 }
