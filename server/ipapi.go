@@ -8,7 +8,6 @@ import (
 
 	database_level "mcmcx.com/gpt-server/database/level"
 	"mcmcx.com/gpt-server/httpx"
-	"mcmcx.com/gpt-server/utils"
 )
 
 type IPLocalizedData struct {
@@ -22,16 +21,26 @@ type IPLocalizedData struct {
 	Status    string `json:"status"`
 }
 
+// / ?.Localize() return ""
 func (I *IPLocalizedData) Localize() string {
 	if I == nil {
+		return ""
+	}
+
+	if len(I.Country) == 0 && len(I.Region) == 0 && len(I.City) == 0 {
 		return ""
 	}
 
 	return fmt.Sprintf("%s,%s,%s", I.Country, I.Region, I.City)
 }
 
+// / ?.FullLocalize() return ""
 func (I *IPLocalizedData) FullLocalize() string {
 	if I == nil {
+		return ""
+	}
+
+	if len(I.Country) == 0 && len(I.Region) == 0 && len(I.City) == 0 {
 		return ""
 	}
 
@@ -65,6 +74,29 @@ func IPLocalized(address string) *IPLocalizedData {
 
 	var data *IPLocalizedData = IPDB2Get(address)
 	if data != nil {
+		return data
+	}
+
+	var result = API_IPGet(address)
+	if result != nil {
+		ipi, ok := IPSet2DB(result)
+		if !ok {
+			fmt.Printf("[WARNING] (IPAPI) DB save %s failure\n", result["query"])
+		}
+
+		bytes, err := json.Marshal(ipi)
+		if err != nil {
+			fmt.Printf("[WARNING] (IPAPI) DB save %s failure\n", result["query"])
+			return nil
+		}
+
+		var v IPLocalizedData
+		err = json.Unmarshal(bytes, &v)
+		if err != nil {
+			fmt.Printf("[WARNING] (IPAPI) DB save %s failure\n", result["query"])
+			return nil
+		}
+		data = &v
 		return data
 	}
 
@@ -110,7 +142,7 @@ func API_IPGet(address string) map[string]any {
 	path := address
 	ipapi_client.HTTPRequest2(path, params, &data)
 
-	utils.Logger.Log("(API) Get IP :", address, " (Time: ", data.EndTime(), "ms)")
+	fmt.Printf("(IPAPI) Get IP : %s (Time: %d ms)\n", address, data.EndTime())
 
 	if data.ErrorCode != httpx.HTTP_RESULT_OK {
 		return nil
@@ -121,6 +153,9 @@ func API_IPGet(address string) map[string]any {
 		if result["message"] == "private range" {
 			result["status"] = "success"
 			result["type"] = "private"
+		} else if result["message"] == "reserved range" {
+			result["status"] = "success"
+			result["type"] = "reserved"
 		} else {
 			return nil
 		}
@@ -132,13 +167,8 @@ func API_IPGet(address string) map[string]any {
 
 	result["ipv6"] = IsIPv6
 
-	ipi, ok := IPSet2DB(result)
-	if !ok {
-		return nil
-	}
-
 	//
-	return ipi.(map[string]any)
+	return result // ipi.(map[string]any)
 }
 
 func IPDBAddress(address string) string {
@@ -147,18 +177,26 @@ func IPDBAddress(address string) string {
 		return ""
 	}
 
-	//IPv6 not support
-	ip6 := ip.To16()
-	if ip6 != nil {
+	//IPv4
+	ip4 := ip.To4()
+	if ip4 == nil {
 		return ""
 	}
 
+	//IPv6 not support
+	ip6 := ip.To16()
+	if ip6 != nil {
+		fmt.Printf("[WARNING] (IPAPI) Not support %s IPv6:%s\n", ip.String(), ip6.String())
+	}
+
 	//IPv4
-	address = ip.String()
+	address = ip4.String()
 	// IP address 192.168.0.1, mask 255.255.255.0
 	// or 192.168.0.1/24
 	vs := strings.Split(address, ".")
 	address = vs[0] + "." + vs[1] + "." + vs[2] + "." + "0"
+
+	//
 	return address
 }
 
@@ -228,26 +266,28 @@ func IPSet2DB(ipi map[string]any) (any, bool) {
 		ipapi_db = database_level.NewAndInitialize("./ipv4.db")
 	}
 
-	lcountry := ipi["country"].(string)
-	if len(lcountry) == 0 {
+	//
+	lcountry, ok := ipi["country"].(string)
+	if !ok || len(lcountry) == 0 {
 		lcountry = ""
 	}
 
-	lregion := ipi["region"].(string)
-	if len(lregion) == 0 {
-		lregion := ipi["regionName"].(string)
-		if len(lregion) == 0 {
+	//
+	lregion, ok := ipi["region"].(string)
+	if !ok || len(lregion) == 0 {
+		lregion, ok := ipi["regionName"].(string)
+		if !ok || len(lregion) == 0 {
 			lregion = ""
 		}
 	}
 
-	lcity := ipi["city"].(string)
-	if len(lcity) == 0 {
+	lcity, ok := ipi["city"].(string)
+	if !ok || len(lcity) == 0 {
 		lcity = ""
 	}
 
-	ldistrict := ipi["district"].(string)
-	if len(ldistrict) == 0 {
+	ldistrict, ok := ipi["district"].(string)
+	if !ok || len(ldistrict) == 0 {
 		ldistrict = ""
 	}
 
@@ -259,6 +299,8 @@ func IPSet2DB(ipi map[string]any) (any, bool) {
 	status := "reserved"
 	if ip_type == "private" {
 		status = "local"
+	} else if ip_type == "reserved" {
+		//nothing
 	} else {
 		status = ""
 	}

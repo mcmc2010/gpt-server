@@ -26,7 +26,8 @@ type Server struct {
 	router *gin.Engine
 }
 
-func allow_domains(domains []string) gin.HandlerFunc {
+// /
+func AllowDomainsHandler(domains []string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		//
 		var origin = "*"
@@ -65,15 +66,16 @@ func allow_domains(domains []string) gin.HandlerFunc {
 	}
 }
 
+// /
 func ExceptionHandler() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		defer func() {
-            if err := recover(); err != nil {
-                utils.Logger.LogError("Recovered: ", err)
-            }
-        }()
+			if err := recover(); err != nil {
+				utils.Logger.LogError("Exception: ", err)
+			}
+		}()
 		ctx.Next()
-		
+
 	}
 }
 
@@ -139,11 +141,11 @@ func InitServer(config Config, mode string) *Server {
 	}))
 
 	if config.AllowDomains {
-		router.Use(allow_domains(config.AllowDomainsList))
+		router.Use(AllowDomainsHandler(config.AllowDomainsList))
 	}
 
 	//
-	router.Use(ExceptionHandler());
+	router.Use(ExceptionHandler())
 
 	//
 	api := router.Group("/api")

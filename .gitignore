@@ -23,3 +23,7 @@ bin/logs
 go.work
 bin/config.yaml
 bin/main
+bin/.DS_Store
+bin/config.yaml
+__debug_bin
+bin/ipv4.db/LOG

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -32,8 +33,14 @@ func main() {
 
 	//
 	server.API_IPInit()
-	server.API_IPGet("92.168.1.1")
-	server.IPDB2Get("92.168.1.1")
+	address, err := net.InterfaceAddrs()
+	if address == nil {
+		logger.LogError("Net interface error: ", err)
+		return
+	}
+	ip := (address[0].(*net.IPNet)).IP;
+	ipi := server.IPLocalized(ip.String())
+	logger.Log("IP ", ip.String(), " ", ipi.FullLocalize())
 
 	//Redis
 	if !server.RedisInitialize("config.yaml") {
