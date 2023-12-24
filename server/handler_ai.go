@@ -7,41 +7,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"mcmcx.com/gpt-server/httpx"
+	"mcmcx.com/gpt-server/utils"
 )
-
-//	{
-//		"created":1651172509,
-//		"id":"text-search-babbage-doc-001",
-//		"object":"model",
-//		"owned_by":"openai-dev",
-//		"parent":null,
-//		"permission":
-//		[
-//			{"allow_create_engine":false,"allow_fine_tuning":false,"allow_logprobs":true,"allow_sampling":true,"allow_search_indices":true,"allow_view":true,"created":1695933794,"group":null,"id":"modelperm-s9n5HnzbtVn7kNc5TIZWiCFS","is_blocking":false,"object":"model_permission","organization":"*"}
-//		],
-//		"root":"text-search-babbage-doc-001"
-//	}
-type OPENAI_MODEL_ITEM struct {
-	Created int64  `json:"created"`
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Owned   string `json:"owned_by"`
-	//Parent string `json:"parent"`
-	Permission []any  `json:"permission"`
-	Root       string `json:"root"`
-}
-
-type OPEMAI_MODELS struct {
-	Object string              `json:"object"`
-	Data   []OPENAI_MODEL_ITEM `json:"data"`
-}
 
 var OPENAI_Models *OPEMAI_MODELS = nil
 
-func (I *OPENAI_MODEL_ITEM) Name() string {
-	return strings.ReplaceAll(I.ID, "-", " ")
-}
-
+// /
 func OpenAI_Init(models any) bool {
 	if models == nil {
 		return false
@@ -86,21 +57,46 @@ func HandleOpenAIModels(ctx *gin.Context) {
 	ctx.JSON(200, data)
 }
 
-// {
-// 	"model": "gpt-3.5-turbo",
-// 	// role (string) Required
-// 	// The role of the author of this message. One of system, user, or assistant.
-// 	"messages": messages,
-// 	"max_tokens": this.TOKENS_MAX, //The maximum number of tokens to generate in the completion.
-// 	"temperature": 1, //What sampling temperature to use, between 0 and 2.
-// 	"top_p": 1,
-// 	//"n": 1, //How many chat completion choices to generate for each input message.
-// 	"presence_penalty": 0,
-// 	"frequency_penalty": 0,
-// 	"stream": stream,
-// 	"stop": null,
-// 	"user": id,
-// }
+// https://platform.openai.com/docs/models/continuous-model-upgrades
+// gpt-3.5-turbo  | Currently points to gpt-3.5-turbo-0613. | 4,096 tokens	| Up to Sep 2021
+// gpt-4	      | Currently points to gpt-4-0613.         | 8,192 tokens	| Up to Sep 2021
+// gpt-4-32k	  | Currently points to gpt-4-32k-0613.     | 32,768 tokens	| Up to Sep 2021
+// curl https://api.openai.com/v1/chat/completions \
+//   -H "Content-Type: application/json" \
+//   -H "Authorization: Bearer $OPENAI_API_KEY" \
+//   -d '{
+//     "model": "gpt-3.5-turbo",
+// 	   // role (string) Required
+// 	   // The role of the author of this message. One of system, user, or assistant.
+//     "messages": [
+//       {
+//         "role": "system",
+//         "content": "You are a helpful assistant."
+//       },
+//       {
+//         "role": "user",
+//         "content": "Who won the world series in 2020?"
+//       }
+//     ]
+// 	   "max_tokens": TOKENS_MAX, //The maximum number of tokens to generate in the completion.
+// 	   "temperature": 1, //What sampling temperature to use, between 0 and 2.
+// 	   "top_p": 1,
+// 	   //"n": 1, //How many chat completion choices to generate for each input message.
+// 	   "presence_penalty": 0,
+// 	   "frequency_penalty": 0,
+// 	   "stream": stream,
+// 	   "stop": null,
+// 	   "user": id,
+//   }'
+// curl https://api.openai.com/v1/images/generations \
+//   -H "Content-Type: application/json" \
+//   -H "Authorization: Bearer $OPENAI_API_KEY" \
+//   -d '{
+//     "model": "dall-e-3",
+//     "prompt": "a white siamese cat",
+//     "n": 1,
+//     "size": "1024x1024"
+//   }'
 
 func HandleOpenAICompletions(ctx *gin.Context) {
 	result, handler := InitHandler(ctx, &HandlerOptions{PrintHeaders: true, DataType: "json", HasAuthorization: true})
@@ -114,13 +110,42 @@ func HandleOpenAICompletions(ctx *gin.Context) {
 		return
 	}
 
-	body["max_tokens"] = 2048
+	//
 	body["temperature"] = 1
 	body["top_p"] = 1
 	body["presence_penalty"] = 0
 	body["frequency_penalty"] = 0
 	body["stream"] = true
 	body["stop"] = nil
+
+	id, ok := body["user"].(string)
+	if(!ok) {
+		id = "id0000"
+	}
+	id = strings.ToLower(strings.TrimSpace(id))
+
+	// Checking models
+	// ChatGPT-3 : 4096 tokens
+	body["max_tokens"] = 2048
+	model_id, ok := body["model"].(string)
+	if !ok {
+		model_id = "gpt-3.5-turbo"
+	}
+
+	model_id = strings.ToLower(strings.TrimSpace(model_id))
+	var item = OPENAI_Models.Find(model_id)
+	if(item == nil) {
+		model_id = "gpt-3.5-turbo"
+		item = OPENAI_Models.Find(model_id)
+	}
+
+	// ChatGPT-4 : 8192 tokens
+	if strings.Contains(model_id, "gpt-4") {
+		body["max_tokens"] = 4096
+	}
+
+	body["model"] = model_id
+	utils.Logger.Log("[AI] Completions (Model:", item.ID, ", ID:", id, ")")
 
 	//
 	ctx.Header("Content-Type", "text/event-stream")
