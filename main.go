@@ -38,9 +38,9 @@ func main() {
 		logger.LogError("Net interface error: ", err)
 		return
 	}
-	ip := (address[0].(*net.IPNet)).IP;
+	ip := (address[0].(*net.IPNet)).IP
 	ipi := server.IPLocalized(ip.String())
-	logger.Log("IP ", ip.String(), " ", ipi.FullLocalize())
+	logger.Log("IP ", ip.String(), " '", ipi.FullLocalize(), "'")
 
 	//Redis
 	if !server.RedisInitialize("config.yaml") {

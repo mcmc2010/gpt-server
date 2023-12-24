@@ -31,7 +31,14 @@ func (I *IPLocalizedData) Localize() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s,%s,%s", I.Country, I.Region, I.City)
+	text := I.Country
+	if len(I.Region) > 0 {
+		text = text + fmt.Sprintf(",%s", I.Region)
+	}
+	if len(I.City) > 0 {
+		text = text + fmt.Sprintf(",%s", I.City)
+	}
+	return text
 }
 
 // / ?.FullLocalize() return ""
@@ -44,7 +51,14 @@ func (I *IPLocalizedData) FullLocalize() string {
 		return ""
 	}
 
-	text := fmt.Sprintf("%s,%s,%s", I.Country, I.Region, I.City)
+	text := I.Country
+	if len(I.Region) > 0 {
+		text = text + fmt.Sprintf(",%s", I.Region)
+	}
+	if len(I.City) > 0 {
+		text = text + fmt.Sprintf(",%s", I.City)
+	}
+
 	if len(I.District) > 0 {
 		text = text + fmt.Sprintf(" %s", I.District)
 	}
@@ -72,6 +86,7 @@ func API_IPInit() bool {
 
 func IPLocalized(address string) *IPLocalizedData {
 
+	//
 	var data *IPLocalizedData = IPDB2Get(address)
 	if data != nil {
 		return data
@@ -141,9 +156,6 @@ func API_IPGet(address string) map[string]any {
 
 	path := address
 	ipapi_client.HTTPRequest2(path, params, &data)
-
-	fmt.Printf("(IPAPI) Get IP : %s (Time: %d ms)\n", address, data.EndTime())
-
 	if data.ErrorCode != httpx.HTTP_RESULT_OK {
 		return nil
 	}
@@ -166,6 +178,8 @@ func API_IPGet(address string) map[string]any {
 	}
 
 	result["ipv6"] = IsIPv6
+
+	fmt.Printf("(IPAPI) Get IP : %s %s (Time: %d ms)\n", address, result["country"], data.EndTime())
 
 	//
 	return result // ipi.(map[string]any)
@@ -273,9 +287,9 @@ func IPSet2DB(ipi map[string]any) (any, bool) {
 	}
 
 	//
-	lregion, ok := ipi["region"].(string)
+	lregion, ok := ipi["regionName"].(string)
 	if !ok || len(lregion) == 0 {
-		lregion, ok := ipi["regionName"].(string)
+		lregion, ok := ipi["region"].(string)
 		if !ok || len(lregion) == 0 {
 			lregion = ""
 		}

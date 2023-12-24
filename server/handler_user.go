@@ -130,8 +130,11 @@ func HandleUserLogin(ctx *gin.Context) {
 
 	utils.Logger.LogWarning("[Login] Username:", login_data.Username,
 		" Result (", result_data.Code, ", ", result_data.Token, ")",
-		" IPAddress (", result_data.IPAddress, ",", result_data.DeviceUID, ")")
+		" IPAddress (", result_data.IPAddress, ",", result_data.DeviceUID, "'", result_data.IPLocalized,"'",")")
 
+	//
+	result_data.IPLocalized = ""
+	//
 	ctx.JSON(http.StatusOK, result_data)
 }
 
@@ -220,7 +223,7 @@ func HandleUserAuth(ctx *gin.Context) {
 
 	utils.Logger.LogWarning("[Auth] IDX:", auth_data.IDX,
 		" Result (OK)",
-		" IPAddress (", handler.AuthorizationData.IPAddress, ",", handler.AuthorizationData.DeviceUID, ")")
+		" IPAddress (", handler.AuthorizationData.IPAddress, ",", handler.AuthorizationData.DeviceUID, ",'", handler.AuthorizationData.IPLocalized, "')")
 
 	var result_data TUserAuthResultData = TUserAuthResultData{
 		IDX:       handler.AuthorizationData.IDX,
