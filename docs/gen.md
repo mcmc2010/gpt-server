@@ -31,3 +31,12 @@ openssl x509 -req -days 365 -in client.csr -CA ca.crt -CAkey ca_rsa_2048.pem -pa
 
 openssl rsa -in client_rsa_2048.pem -out client_rsa_2048.pem.unsecure
 
+### Redis database key and certificates
+
+openssl x509 -req -days 365 -in redis.csr -CA ca.crt -CAkey ca_rsa_2048.pem -passin pass:123456 -CAcreateserial -out redis.crt
+
+openssl rsa -in redis_rsa_2048.pem -out redis_rsa_2048.pem.unsecure
+
+### Verify certificates
+openssl verify -CAfile ca.crt https.crt client.crt redis.crt
+
