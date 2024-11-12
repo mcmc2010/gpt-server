@@ -27,3 +27,4 @@ bin/.DS_Store
 bin/config.yaml
 __debug_bin
 bin/ipv4.db/LOG
+bin/config.yaml
